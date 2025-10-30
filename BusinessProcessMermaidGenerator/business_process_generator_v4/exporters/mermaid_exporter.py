@@ -1,11 +1,11 @@
 """
-Экспорт в Mermaid формат (Markdown и HTML)
+Экспорт в Mermaid формат - ОБНОВЛЕННЫЙ МОДУЛЬ
 """
-from typing import Dict, Set, List, Tuple
+from typing import Dict, Set, List
 from pathlib import Path
-from models import Operation, Choices, ProcessAnalysis, AnalysisData
-from utils import safe_id, escape_text, _escape_multiline, create_markdown_table
-from config import ENCODING, STYLES
+from core.models import Operation, Choices, ProcessAnalysis, AnalysisData
+from utils.text_processing import safe_id, escape_text, create_markdown_table
+from config.constants import ENCODING, STYLES
 
 def build_mermaid_md(
     operations: Dict[str, Operation],
@@ -17,7 +17,6 @@ def build_mermaid_md(
     """
     external_inputs = analysis_data.external_inputs
     final_outputs = analysis_data.final_outputs
-    output_to_operation = analysis_data.output_to_operation
     input_to_operations = analysis_data.input_to_operations
     analysis = analysis_data.analysis
     
@@ -113,110 +112,6 @@ def _node_line_md(name: str, op: Operation,
         )
     return f'    {node_id}["{escape_text(op.node_text)}"]{style}'
 
-def build_mermaid_html(
-    operations: Dict[str, Operation],
-    analysis_data: AnalysisData,
-    choices: Choices,
-) -> str:
-    """
-    Генерирует Mermaid код для вставки в HTML с панорамированием
-    """
-    external_inputs = analysis_data.external_inputs
-    final_outputs = analysis_data.final_outputs
-    output_to_operation = analysis_data.output_to_operation
-    input_to_operations = analysis_data.input_to_operations
-    analysis = analysis_data.analysis
-    
-    lines = ["graph LR"]
-    for k, v in STYLES.items():
-        lines.append(f"    classDef {k} {v};")
-
-    critical_ops = {c.operation for c in analysis.critical_points}
-
-    for inp in sorted(external_inputs):
-        if inp:
-            lines.append(f'    {safe_id(inp)}(["{escape_text(inp)}"]):::external')
-    for out in sorted(final_outputs):
-        if out:
-            lines.append(f'    {safe_id(out)}(["{escape_text(out)}"]):::final')
-
-    # Группировка для HTML Mermaid
-    from collections import defaultdict
-    subgroup_ops = defaultdict(list)
-    for name, op in operations.items():
-        # Добавляем только операции с указанной подгруппой
-        if op.subgroup and str(op.subgroup).strip() and str(op.subgroup).strip() != "nan":
-            subgroup_ops[op.subgroup].append(name)
-        else:
-            # Операции без подгруппы добавляем в отдельную категорию
-            subgroup_ops[None].append(name)
-
-    if choices.subgroup_column and not choices.no_grouping:
-        # Сначала добавляем подгруппы с определенными значениями
-        for subgroup in sorted([sg for sg in subgroup_ops.keys() if sg is not None]):
-            sg_id = safe_id(subgroup)
-            lines.append(f'    subgraph {sg_id}["{escape_text(subgroup)}"]')
-            for name in sorted(subgroup_ops[subgroup]):
-                lines.append(_node_line_html(name, operations[name], input_to_operations, critical_ops))
-            lines.append("    end")
-        
-        # Затем добавляем операции без подгруппы (если есть)
-        if None in subgroup_ops and subgroup_ops[None]:
-            for name in sorted(subgroup_ops[None]):
-                lines.append(_node_line_html(name, operations[name], input_to_operations, critical_ops))
-    else:
-        for name in sorted(operations):
-            lines.append(_node_line_html(name, operations[name], input_to_operations, critical_ops))
-
-    added = set()
-    for name, op in operations.items():
-        src_id = safe_id(name)
-        
-        # Обрабатываем ВСЕ выходы операции
-        for output in op.outputs:
-            if output and output in final_outputs:
-                key = (src_id, output, safe_id(output))
-                if key not in added:
-                    added.add(key)
-                    lines.append(f'    {src_id}-- "{escape_text(output)}" -->{safe_id(output)}')
-            
-            # Связываем выходы с операциями, которые их используют
-            if output in input_to_operations:
-                for target_op in input_to_operations[output]:
-                    key = (src_id, output, safe_id(target_op))
-                    if key not in added:
-                        added.add(key)
-                        lines.append(f'    {src_id}-- "{escape_text(output)}" -->{safe_id(target_op)}')
-        
-        # Обрабатываем входы из внешних источников
-        for inp in op.inputs:
-            if not inp:
-                continue
-            if inp in external_inputs:
-                key = (safe_id(inp), inp, src_id)
-                if key not in added:
-                    added.add(key)
-                    lines.append(f'    {safe_id(inp)}-- "{escape_text(inp)}" -->{src_id}')
-
-    return "\n".join(lines)
-
-def _node_line_html(name: str, op: Operation,
-                   input_to_operations: Dict[str, List[str]],
-                   critical_ops: Set[str]) -> str:
-    node_id = safe_id(name)
-    if name in critical_ops:
-        style = ":::critical"
-    else:
-        is_merge = len(op.inputs) > 1
-        is_split = any(len(input_to_operations.get(out, [])) > 1 for out in op.outputs)
-        style = (
-            ":::merge" if is_merge and is_split else
-            ":::merge" if is_merge else
-            ":::split" if is_split else
-            ""
-        )
-    return f'    {node_id}["{escape_text(op.node_text)}"]{style}'
-
 def _build_io_registry(
     external_inputs: Set[str],
     final_outputs: Set[str],
@@ -270,17 +165,11 @@ def _build_op_registry(operations: Dict[str, Operation],
         })
     return rows
 
-def export_mermaid(operations: Dict[str, Operation], analysis_data: AnalysisData, 
-                  choices: Choices, available_columns: List[str], output_base: str = None) -> None:
+def generate_mermaid_full_markdown(operations: Dict[str, Operation], analysis_data: AnalysisData, 
+                                  choices: Choices, available_columns: List[str]) -> str:
     """
-    Экспортирует диаграмму в Markdown с Mermaid
+    Генерирует полный Markdown контент (без сохранения в файл)
     """
-    # Используем переданное имя файла или значение по умолчанию
-    if output_base is None:
-        output_base = "business_process_diagram"
-    
-    output_file = Path(f"{output_base}.md")
-
     # Генерация Mermaid кода
     mermaid_code = build_mermaid_md(operations, analysis_data, choices)
 
@@ -382,8 +271,24 @@ def export_mermaid(operations: Dict[str, Operation], analysis_data: AnalysisData
     if choices.show_detailed:
         md_parts.append(f"- **Текст узлов** – содержит подробное описание операций\n")
 
+    return "".join(md_parts)
+
+def export_mermaid(operations: Dict[str, Operation], analysis_data: AnalysisData, 
+                  choices: Choices, available_columns: List[str], output_base: str = None) -> None:
+    """
+    Экспортирует диаграмму в Markdown файл (сохраняет в файл)
+    """
+    # Используем переданное имя файла или значение по умолчанию
+    if output_base is None:
+        output_base = "business_process_diagram"
+    
+    output_file = Path(f"{output_base}.md")
+
+    # Генерация полного Markdown
+    content = generate_mermaid_full_markdown(operations, analysis_data, choices, available_columns)
+
     # Сохранение файла
-    output_file.write_text("".join(md_parts), encoding=ENCODING)
+    output_file.write_text(content, encoding=ENCODING)
 
     print(f"\n" + "="*60)
     print("✓ MARKDOWN-ДИАГРАММА УСПЕШНО СОЗДАНА!")
