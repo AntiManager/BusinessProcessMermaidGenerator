@@ -3,6 +3,7 @@
 
 ## @🏗️ СТРУКТУРА ПРОЕКТА
 
+```
 business_process_generator/
 ├── 📁 exporters/                    # Модули экспорта
 │   ├── __init__.py
@@ -19,6 +20,7 @@ business_process_generator/
 ├── 📄 data_loader.py               # Загрузка и обработка данных
 ├── 📄 analysis.py                  # Анализ бизнес-процессов
 └── 📄 bp_config.json               # Сохраненная конфигурация (АВТОМАТИЧЕСКИ)
+```
 
 ### 🆕 НОВЫЕ ВОЗМОЖНОСТИ ВЕРСИИ 2.0
 
