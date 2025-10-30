@@ -17,10 +17,16 @@ def load_and_validate_data(excel_path: str, sheet_name: str, required_columns: s
         print(f"Ошибка чтения Excel: {e}")
         return None
 
+    # Проверяем наличие обязательных колонок
     missing = required_columns - set(df.columns)
     if missing:
         print(f"Отсутствуют обязательные колонки: {', '.join(missing)}")
         print(f"Найденные колонки: {', '.join(df.columns)}")
+        return None
+
+    # Проверяем что есть данные для обработки
+    if df.empty:
+        print("Файл Excel не содержит данных")
         return None
 
     return df
@@ -34,7 +40,8 @@ def collect_operations(df: pd.DataFrame, choices: Choices) -> Dict[str, Operatio
 
     # Собираем все строки по имени операции
     for _, row in df.iterrows():
-        if pd.isna(row["Операция"]) and pd.isna(row["Выход"]):
+        # Пропускаем полностью пустые строки
+        if pd.isna(row.get("Операция")) and pd.isna(row.get("Выход")):
             continue
 
         op_name = str(row["Операция"]).strip() if pd.notna(row["Операция"]) else f"Операция_{len(operations)}"
@@ -52,14 +59,14 @@ def collect_operations(df: pd.DataFrame, choices: Choices) -> Dict[str, Operatio
         
         for row in rows:
             # Объединяем входы
-            if pd.notna(row["Входы"]):
+            if pd.notna(row.get("Входы")):
                 input_text = str(row["Входы"])
                 if input_text.strip() != "—":
                     new_inputs = [inp.strip() for inp in input_text.split(";") if inp.strip()]
                     merged_inputs.extend(new_inputs)
             
             # Объединяем выходы (собираем все выходы)
-            if pd.notna(row["Выход"]):
+            if pd.notna(row.get("Выход")):
                 output_text = str(row["Выход"]).strip()
                 if output_text and output_text != "—":
                     # Разделяем выходы по точке с запятой

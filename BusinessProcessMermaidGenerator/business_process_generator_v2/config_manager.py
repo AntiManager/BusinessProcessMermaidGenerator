@@ -21,7 +21,18 @@ class ConfigManager:
             # При разработке - в текущей директории
             self.config_file = Path(config_file)
         
-        print(f"Config file path: {self.config_file}")  # Для отладки
+        # Конфигурация по умолчанию
+        self.default_config = {
+            'excel_path': '',
+            'sheet_name': '',
+            'output_base': 'business_process_diagram',
+            'output_format': 'html_svg',
+            'subgroup_column': '',
+            'show_detailed': False,
+            'critical_min_inputs': CRITICAL_MIN_INPUTS,
+            'critical_min_reuse': CRITICAL_MIN_REUSE,
+            'no_grouping': True
+        }
     
     def load_config(self) -> Dict[str, Any]:
         """Загрузка конфигурации из файла"""
@@ -31,7 +42,6 @@ class ConfigManager:
                     loaded_config = json.load(f)
                     # Объединяем с конфигурацией по умолчанию
                     config = {**self.default_config, **loaded_config}
-                    print(f"Loaded config: {config}")  # Для отладки
                     return config
             except Exception as e:
                 print(f"Ошибка загрузки конфигурации: {e}")
@@ -40,6 +50,9 @@ class ConfigManager:
     def save_config(self, config: Dict[str, Any]):
         """Сохранение конфигурации в файл"""
         try:
+            # Создаем директорию если нужно
+            self.config_file.parent.mkdir(parents=True, exist_ok=True)
+            
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(config, f, ensure_ascii=False, indent=2)
         except Exception as e:
