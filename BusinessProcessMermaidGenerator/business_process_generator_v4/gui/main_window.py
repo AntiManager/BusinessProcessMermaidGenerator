@@ -5,10 +5,12 @@ import sys
 from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QHBoxLayout, 
                              QWidget, QSplitter, QTabWidget, QStatusBar, QLabel)
 from PyQt6.QtCore import Qt, QSettings
-from .setup_panel import SetupPanel
-from .editor_panel import EditorPanel
-from .preview_panel import PreviewPanel
-from .components.theme_manager import ThemeManager
+
+# ИСПРАВЛЕННЫЕ ИМПОРТЫ
+from gui.setup_panel import SetupPanel
+from gui.editor_panel import EditorPanel
+from gui.preview_panel import PreviewPanel
+from gui.components.theme_manager import ThemeManager
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -67,15 +69,21 @@ class MainWindow(QMainWindow):
     
     def connect_signals(self):
         """Подключает взаимодействие между компонентами"""
-        self.setup_panel.generation_complete.connect(self.on_generation_complete)
-        self.editor_panel.content_changed.connect(self.preview_panel.update_preview)
-        self.setup_panel.settings_changed.connect(self.editor_panel.update_settings)
+        try:
+            self.setup_panel.generation_complete.connect(self.on_generation_complete)
+            self.editor_panel.content_changed.connect(self.preview_panel.update_preview)
+            self.setup_panel.settings_changed.connect(self.editor_panel.update_settings)
+        except Exception as e:
+            print(f"Ошибка подключения сигналов: {e}")
     
     def on_generation_complete(self, file_path, content):
         """Обрабатывает завершение генерации"""
-        self.editor_panel.load_content(content)
-        self.preview_panel.update_preview(content)
-        self.statusBar().showMessage(f"Диаграмма создана: {file_path}")
+        try:
+            self.editor_panel.load_content(content)
+            self.preview_panel.update_preview(content)
+            self.statusBar().showMessage(f"Диаграмма создана: {file_path}")
+        except Exception as e:
+            self.statusBar().showMessage(f"Ошибка: {str(e)}")
     
     def load_settings(self):
         """Загружает настройки окна"""

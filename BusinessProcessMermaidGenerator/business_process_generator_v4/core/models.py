@@ -1,41 +1,37 @@
 """
-Data classes и модели данных - ОБНОВЛЕННЫЙ МОДУЛЬ
+Модели данных
 """
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Any, Set
+from typing import List, Optional, Dict, Set
 
 @dataclass
 class Operation:
     name: str
-    outputs: List[str]
     inputs: List[str]
-    subgroup: Optional[str]
-    node_text: str
-    group: str = ""
-    owner: str = ""
-    detailed: str = ""
+    outputs: List[str]
+    group: Optional[str] = None
+    owner: Optional[str] = None
+    detailed: Optional[str] = None
+    subgroup: Optional[str] = None
+    
+    @property
+    def node_text(self) -> str:
+        """Текст для отображения в узле диаграммы"""
+        if self.detailed:
+            return f"{self.name}\n{self.detailed}"
+        return self.name
 
 @dataclass
 class Choices:
-    subgroup_column: Optional[str] = None
-    show_detailed: bool = False
-    critical_min_inputs: int = 3
-    critical_min_reuse: int = 3
-    no_grouping: bool = False
-    output_format: str = "md"
-
-@dataclass
-class MergePoint:
-    operation: str
-    input_count: int
-    inputs: List[str]
-
-@dataclass
-class SplitPoint:
-    output: str
-    source_operation: str
-    target_count: int
-    targets: List[str]
+    subgroup_column: Optional[str]
+    show_detailed: bool
+    critical_min_inputs: int
+    critical_min_reuse: int
+    output_format: str
+    
+    @property
+    def no_grouping(self) -> bool:
+        return self.subgroup_column is None
 
 @dataclass
 class CriticalPoint:
@@ -44,13 +40,24 @@ class CriticalPoint:
     output_reuse: int
 
 @dataclass
+class MergePoint:
+    operation: str
+    input_count: int
+
+@dataclass
+class SplitPoint:
+    output: str
+    source_operation: str
+    target_count: int
+
+@dataclass
 class ProcessAnalysis:
+    operations_count: int
+    external_inputs: Set[str]
+    final_outputs: Set[str]
     merge_points: List[MergePoint]
     split_points: List[SplitPoint]
     critical_points: List[CriticalPoint]
-    external_inputs: Set[str]
-    final_outputs: Set[str]
-    operations_count: int
     subgroups_count: int
     groups_count: int
     owners_count: int
@@ -59,6 +66,6 @@ class ProcessAnalysis:
 class AnalysisData:
     external_inputs: Set[str]
     final_outputs: Set[str]
-    output_to_operation: Dict[str, str]
     input_to_operations: Dict[str, List[str]]
+    output_to_operation: Dict[str, str]
     analysis: ProcessAnalysis

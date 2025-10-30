@@ -3,7 +3,7 @@ PyQt6>=6.6.0
 PyQt6-WebEngine>=6.6.0
 PyQt6-Qt6>=6.6.0
 
-# Data Processing
+# Data Processing  
 pandas>=2.0.0
 openpyxl>=3.1.0
 
@@ -13,3 +13,6 @@ markdown>=3.5.0
 # Development
 black>=23.0.0
 flake8>=6.0.0
+
+# ДОБАВИТЬ для работы с путями
+pathlib2>=2.3.0; python_version < '3.4'

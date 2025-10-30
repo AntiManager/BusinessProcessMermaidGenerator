@@ -1,6 +1,10 @@
 """
 Экспорт в Mermaid формат - ОБНОВЛЕННЫЙ МОДУЛЬ
 """
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from typing import Dict, Set, List
 from pathlib import Path
 from core.models import Operation, Choices, ProcessAnalysis, AnalysisData

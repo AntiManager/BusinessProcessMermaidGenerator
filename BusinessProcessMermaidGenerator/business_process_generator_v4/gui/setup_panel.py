@@ -4,7 +4,7 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QGroupBox, QFormLayout, 
                              QLineEdit, QPushButton, QComboBox, QCheckBox,
                              QSpinBox, QRadioButton, QButtonGroup, QFileDialog,
-                             QHBoxLayout, QLabel)
+                             QHBoxLayout, QLabel, QMessageBox)
 from PyQt6.QtCore import pyqtSignal, QThread
 from pathlib import Path
 import pandas as pd
@@ -15,9 +15,10 @@ from exporters.mermaid_exporter import generate_mermaid_full_markdown
 
 class GenerationThread(QThread):
     finished = pyqtSignal(str, str)  # file_path, content
+    error = pyqtSignal(str)  # Добавляем сигнал ошибки
     
-    def __init__(self, excel_path, sheet_name, choices):
-        super().__init__()
+    def __init__(self, excel_path, sheet_name, choices, parent=None):  # Добавляем parent
+        super().__init__(parent)  # Передаем parent в суперкласс
         self.excel_path = excel_path
         self.sheet_name = sheet_name
         self.choices = choices
@@ -27,7 +28,7 @@ class GenerationThread(QThread):
             # Выполняем генерацию
             df, error = load_and_validate_data(self.excel_path, self.sheet_name, {"Операция", "Входы", "Выход"})
             if error:
-                print(f"Ошибка валидации: {error}")
+                self.error.emit(f"Ошибка валидации: {error}")
                 return
                 
             operations = collect_operations(df, self.choices)
@@ -45,14 +46,16 @@ class GenerationThread(QThread):
             self.finished.emit(str(output_path), content)
             
         except Exception as e:
-            print(f"Ошибка генерации: {e}")
+            error_msg = f"Ошибка генерации: {str(e)}"
+            print(error_msg)
+            self.error.emit(error_msg)
 
 class SetupPanel(QWidget):
     generation_complete = pyqtSignal(str, str)
     settings_changed = pyqtSignal(dict)
     
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.excel_path = ""
         self.sheet_names = []
         self.init_ui()
@@ -152,7 +155,7 @@ class SetupPanel(QWidget):
             self.sheet_combo.clear()
             self.sheet_combo.addItems(self.sheet_names)
         except Exception as e:
-            print(f"Ошибка загрузки листов: {e}")
+            self.show_error(f"Ошибка загрузки листов: {e}")
     
     def on_sheet_changed(self, sheet_name):
         """Обработчик изменения выбранного листа"""
@@ -160,28 +163,39 @@ class SetupPanel(QWidget):
     
     def generate_diagram(self):
         if not self.excel_path or not self.sheet_combo.currentText():
+            self.show_error("Выберите файл Excel и лист")
             return
         
-        # Создаем объект Choices
-        choices = Choices(
-            subgroup_column="Подгруппа" if self.grouping_cb.isChecked() else None,
-            show_detailed=self.detailed_cb.isChecked(),
-            critical_min_inputs=self.min_inputs.value(),
-            critical_min_reuse=self.min_reuse.value(),
-            output_format=self.get_selected_format()
-        )
-        
-        # Запускаем в отдельном потоке
-        self.thread = GenerationThread(
-            self.excel_path, 
-            self.sheet_combo.currentText(), 
-            choices
-        )
-        self.thread.finished.connect(self.generation_complete.emit)
-        self.thread.start()
+        try:
+            # Создаем объект Choices
+            choices = Choices(
+                subgroup_column="Подгруппа" if self.grouping_cb.isChecked() else None,
+                show_detailed=self.detailed_cb.isChecked(),
+                critical_min_inputs=self.min_inputs.value(),
+                critical_min_reuse=self.min_reuse.value(),
+                output_format=self.get_selected_format()
+            )
+            
+            # Запускаем в отдельном потоке с правильными аргументами
+            self.thread = GenerationThread(
+                self.excel_path, 
+                self.sheet_combo.currentText(), 
+                choices,
+                self  # Передаем родительский виджет
+            )
+            self.thread.finished.connect(self.generation_complete.emit)
+            self.thread.error.connect(self.show_error)
+            self.thread.start()
+            
+        except Exception as e:
+            self.show_error(f"Ошибка запуска генерации: {str(e)}")
     
     def get_selected_format(self):
         for button in self.format_group.buttons():
             if button.isChecked():
                 return button.property('format')
         return 'md'
+    
+    def show_error(self, message):
+        """Показывает сообщение об ошибке"""
+        QMessageBox.critical(self, "Ошибка", message)

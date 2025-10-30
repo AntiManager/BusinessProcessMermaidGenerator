@@ -1,16 +1,14 @@
 """
-Константы приложения
+Конфигурация и константы
 """
-
-STYLES = {
-    "external": "fill:yellow,stroke:#333,stroke-width:2px;",
-    "final": "fill:red,stroke:#333,stroke-width:2px,color:white;",
-    "merge": "fill:orange,stroke:#333,stroke-width:2px;",
-    "split": "fill:purple,stroke:#333,stroke-width:2px,color:white;",
-    "critical": "fill:#ff4444,stroke:#000,stroke-width:3px,color:white,stroke-dasharray:5 5;",
-}
-
-CRITICAL_MIN_INPUTS = 3
-CRITICAL_MIN_REUSE = 3
-
 ENCODING = "utf-8"
+
+# Стили для Mermaid диаграмм
+STYLES = {
+    "external": "fill:#fff9c4,stroke:#f57f17,stroke-width:2px",
+    "final": "fill:#ffcdd2,stroke:#c62828,stroke-width:2px",
+    "critical": "fill:#ff4444,stroke:#000000,stroke-width:3px,stroke-dasharray:5,5",
+    "merge": "fill:#ffb74d,stroke:#ef6c00,stroke-width:2px",
+    "split": "fill:#ba68c8,stroke:#6a1b9a,stroke-width:2px",
+    "normal": "fill:#90caf9,stroke:#1565c0,stroke-width:2px"
+}
