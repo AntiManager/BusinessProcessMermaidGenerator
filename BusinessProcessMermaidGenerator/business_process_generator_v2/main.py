@@ -11,6 +11,7 @@ from analysis import analyse_network
 from exporters.mermaid_exporter import export_mermaid
 from exporters.html_exporter import export_html_mermaid
 from exporters.interactive_exporter import export_interactive_html
+from exporters.svg_exporter import export_svg_html
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -44,6 +45,10 @@ def run_with_gui(excel_path: Path, sheet_name: str, choices: Choices, output_bas
             export_mermaid(operations, analysis_data, choices, df.columns.tolist(), output_base)
         elif choices.output_format == "html_mermaid":
             export_html_mermaid(operations, analysis_data, choices, df.columns.tolist(), output_base)
+        elif choices.output_format == "html_interactive":
+            export_interactive_html(operations, analysis_data, choices, output_base)
+        elif choices.output_format == "html_svg":
+            export_svg_html(operations, analysis_data, choices, df.columns.tolist(), output_base)
         else:  # html_interactive
             export_interactive_html(operations, analysis_data, choices, output_base)
 
@@ -77,7 +82,8 @@ def get_file_extension(output_format: str) -> str:
     extensions = {
         "md": "md",
         "html_mermaid": "html", 
-        "html_interactive": "html"
+        "html_interactive": "html",
+        "html_svg": "html"
     }
     return extensions.get(output_format, "html")
 
@@ -136,7 +142,11 @@ def main() -> None:
         export_mermaid(operations, analysis_data, choices, df.columns.tolist(), output_base)
     elif choices.output_format == "html_mermaid":
         export_html_mermaid(operations, analysis_data, choices, df.columns.tolist(), output_base)
-    else:  # html_interactive
+    elif choices.output_format == "html_interactive":
+        export_interactive_html(operations, analysis_data, choices, output_base)
+    elif choices.output_format == "html_svg":
+        export_svg_html(operations, analysis_data, choices, df.columns.tolist(), output_base)
+    else:  # По умолчанию интерактивный HTML
         export_interactive_html(operations, analysis_data, choices, output_base)
 
     # 9. Вывод общей статистики

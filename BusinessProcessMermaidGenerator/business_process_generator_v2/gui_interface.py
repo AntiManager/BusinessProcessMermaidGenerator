@@ -23,7 +23,7 @@ class BusinessProcessGUI:
         self.excel_path = tk.StringVar(value=self.config.get('excel_path', ''))
         self.sheet_name = tk.StringVar(value=self.config.get('sheet_name', 'БП_1'))
         self.output_base = tk.StringVar(value=self.config.get('output_base', 'business_process_diagram'))
-        self.output_format = tk.StringVar(value=self.config.get('output_format', 'html_interactive'))
+        self.output_format = tk.StringVar(value=self.config.get('output_format', 'html_svg'))  # По умолчанию SVG
         self.subgroup_column = tk.StringVar(value=self.config.get('subgroup_column', ''))
         self.show_detailed = tk.BooleanVar(value=self.config.get('show_detailed', False))
         self.critical_min_inputs = tk.IntVar(value=self.config.get('critical_min_inputs', CRITICAL_MIN_INPUTS))
@@ -108,7 +108,8 @@ class BusinessProcessGUI:
         formats = [
             ("Markdown с Mermaid", "md"),
             ("HTML с Mermaid", "html_mermaid"),
-            ("Интерактивный HTML", "html_interactive")
+            ("Интерактивный HTML", "html_interactive"),
+            ("HTML с SVG (рекомендуется)", "html_svg")
         ]
         
         for i, (text, value) in enumerate(formats):
@@ -193,6 +194,10 @@ class BusinessProcessGUI:
             self.no_grouping.set(True)
             self.show_detailed.set(False)
             self.on_grouping_change()
+        elif self.output_format.get() == "html_svg":
+            self.no_grouping.set(True)
+            self.show_detailed.set(True)
+            self.on_grouping_change()
     
     def on_grouping_change(self):
         """Обработка изменения группировки"""
@@ -206,7 +211,7 @@ class BusinessProcessGUI:
         self.excel_path.set('')
         self.sheet_name.set('БП_1')
         self.output_base.set('business_process_diagram')
-        self.output_format.set('html_interactive')
+        self.output_format.set('html_svg')  # SVG по умолчанию
         self.subgroup_column.set('')
         self.show_detailed.set(False)
         self.critical_min_inputs.set(CRITICAL_MIN_INPUTS)
