@@ -42,17 +42,23 @@ def build_mermaid_md(
         from collections import defaultdict
         subgroup_ops = defaultdict(list)
         for name, op in operations.items():
-            subgroup_ops[op.subgroup].append(name)
+            # Добавляем только операции с указанной подгруппой
+            if op.subgroup and str(op.subgroup).strip() and str(op.subgroup).strip() != "nan":
+                subgroup_ops[op.subgroup].append(name)
+            else:
+                # Операции без подгруппы добавляем в отдельную категорию
+                subgroup_ops[None].append(name)
 
-        for subgroup in sorted(subgroup_ops):
-            if not subgroup:
-                continue
+        # Сначала добавляем подгруппы с определенными значениями
+        for subgroup in sorted([sg for sg in subgroup_ops.keys() if sg is not None]):
             sg_id = safe_id(subgroup)
             lines.append(f'    subgraph {sg_id}["{escape_text(subgroup)}"]')
             for name in sorted(subgroup_ops[subgroup]):
                 lines.append(_node_line_md(name, operations[name], input_to_operations, critical_ops))
             lines.append("    end")
-        if None in subgroup_ops:
+        
+        # Затем добавляем операции без подгруппы (если есть)
+        if None in subgroup_ops and subgroup_ops[None]:
             for name in sorted(subgroup_ops[None]):
                 lines.append(_node_line_md(name, operations[name], input_to_operations, critical_ops))
 
@@ -138,18 +144,24 @@ def build_mermaid_html(
     from collections import defaultdict
     subgroup_ops = defaultdict(list)
     for name, op in operations.items():
-        subgroup_ops[op.subgroup].append(name)
+        # Добавляем только операции с указанной подгруппой
+        if op.subgroup and str(op.subgroup).strip() and str(op.subgroup).strip() != "nan":
+            subgroup_ops[op.subgroup].append(name)
+        else:
+            # Операции без подгруппы добавляем в отдельную категорию
+            subgroup_ops[None].append(name)
 
     if choices.subgroup_column and not choices.no_grouping:
-        for subgroup in sorted(subgroup_ops):
-            if not subgroup:
-                continue
+        # Сначала добавляем подгруппы с определенными значениями
+        for subgroup in sorted([sg for sg in subgroup_ops.keys() if sg is not None]):
             sg_id = safe_id(subgroup)
             lines.append(f'    subgraph {sg_id}["{escape_text(subgroup)}"]')
             for name in sorted(subgroup_ops[subgroup]):
                 lines.append(_node_line_html(name, operations[name], input_to_operations, critical_ops))
             lines.append("    end")
-        if None in subgroup_ops:
+        
+        # Затем добавляем операции без подгруппы (если есть)
+        if None in subgroup_ops and subgroup_ops[None]:
             for name in sorted(subgroup_ops[None]):
                 lines.append(_node_line_html(name, operations[name], input_to_operations, critical_ops))
     else:

@@ -68,15 +68,24 @@ def collect_operations(df: pd.DataFrame, choices: Choices) -> Dict[str, Operatio
             
             # Объединяем подгруппу (берем первую непустую)
             if not merged_subgroup and choices.subgroup_column and pd.notna(row.get(choices.subgroup_column)):
-                merged_subgroup = str(row[choices.subgroup_column]).strip()
+                subgroup_value = str(row[choices.subgroup_column]).strip()
+                # Проверяем что значение не пустое
+                if subgroup_value and subgroup_value != "—" and subgroup_value != "nan":
+                    merged_subgroup = subgroup_value
             
             # Объединяем группу (берем первую непустую)
             if not merged_group and "Группа" in df.columns and pd.notna(row.get("Группа")):
-                merged_group = clean_text(row.get("Группа"))
+                group_value = clean_text(row.get("Группа"))
+                # Проверяем что значение не пустое
+                if group_value and group_value != "—" and group_value != "nan":
+                    merged_group = group_value
             
             # Объединяем владельца (берем первого непустого)
             if not merged_owner and "Владелец" in df.columns and pd.notna(row.get("Владелец")):
-                merged_owner = clean_text(row.get("Владелец"))
+                owner_value = clean_text(row.get("Владелец"))
+                # Проверяем что значение не пустое
+                if owner_value and owner_value != "—" and owner_value != "nan":
+                    merged_owner = owner_value
             
             # Объединяем описание (объединяем через точку с запятой)
             if "Подробное описание операции" in df.columns and pd.notna(row.get("Подробное описание операции")):

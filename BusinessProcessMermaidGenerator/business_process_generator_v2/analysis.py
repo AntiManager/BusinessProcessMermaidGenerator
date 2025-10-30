@@ -50,11 +50,12 @@ def analyse_network(
     for op in operations.values():
         all_inputs.update(op.inputs)
         all_outputs.update(op.outputs)
-        if op.subgroup:
+        # Добавляем только непустые значения
+        if op.subgroup and str(op.subgroup).strip() and str(op.subgroup).strip() != "nan":
             subgroup_set.add(op.subgroup)
-        if op.group:
+        if op.group and str(op.group).strip() and str(op.group).strip() != "nan":
             group_set.add(op.group)
-        if op.owner:
+        if op.owner and str(op.owner).strip() and str(op.owner).strip() != "nan":
             owner_set.add(op.owner)
 
     external_inputs = all_inputs - all_outputs
