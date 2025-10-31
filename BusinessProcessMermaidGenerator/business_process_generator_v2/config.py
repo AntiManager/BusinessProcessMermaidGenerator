@@ -14,4 +14,5 @@ CRITICAL_MIN_INPUTS = 3
 CRITICAL_MIN_REUSE = 3
 
 REQ_COLUMNS = {"Операция", "Входы", "Выход"}
+CLD_REQUIRED_COLUMNS = {"Источник", "Цель", "Знак влияния"}
 ENCODING = "utf-8"
