@@ -13,9 +13,9 @@ from config import CRITICAL_MIN_INPUTS, CRITICAL_MIN_REUSE
 class BusinessProcessGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Генератор диаграмм бизнес-процессов v2.1")
-        self.root.geometry("900x700")
-        self.root.minsize(800, 650)
+        self.root.title("Генератор диаграмм бизнес-процессов v3.0")
+        self.root.geometry("950x750")
+        self.root.minsize(850, 700)
         
         # Загрузка конфигурации
         self.config_file = Path("bp_config.json")
@@ -32,6 +32,12 @@ class BusinessProcessGUI:
         self.critical_min_inputs = tk.IntVar(value=self.config.get('critical_min_inputs', CRITICAL_MIN_INPUTS))
         self.critical_min_reuse = tk.IntVar(value=self.config.get('critical_min_reuse', CRITICAL_MIN_REUSE))
         self.no_grouping = tk.BooleanVar(value=self.config.get('no_grouping', True))
+        
+        # Новые переменные для CLD
+        self.cld_source_type = tk.StringVar(value=self.config.get('cld_source_type', 'auto'))
+        self.cld_sheet_name = tk.StringVar(value=self.config.get('cld_sheet_name', ''))
+        self.show_cld_operations = tk.BooleanVar(value=self.config.get('show_cld_operations', True))
+        self.cld_influence_signs = tk.BooleanVar(value=self.config.get('cld_influence_signs', True))
         
         self.create_widgets()
         
@@ -61,7 +67,11 @@ class BusinessProcessGUI:
                 'show_detailed': self.show_detailed.get(),
                 'critical_min_inputs': self.critical_min_inputs.get(),
                 'critical_min_reuse': self.critical_min_reuse.get(),
-                'no_grouping': self.no_grouping.get()
+                'no_grouping': self.no_grouping.get(),
+                'cld_source_type': self.cld_source_type.get(),
+                'cld_sheet_name': self.cld_sheet_name.get(),
+                'show_cld_operations': self.show_cld_operations.get(),
+                'cld_influence_signs': self.cld_influence_signs.get()
             }
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(config, f, ensure_ascii=False, indent=2)
@@ -74,10 +84,13 @@ class BusinessProcessGUI:
             excel_file = pd.ExcelFile(self.excel_path.get(), engine="openpyxl")
             self.sheet_names = excel_file.sheet_names
             
-            # Обновляем combobox
+            # Обновляем combobox основного листа
             self.sheet_combobox['values'] = self.sheet_names
             
-            # Устанавливаем значение по умолчанию
+            # Обновляем combobox для CLD листа
+            self.cld_sheet_combobox['values'] = self.sheet_names
+            
+            # Устанавливаем значение по умолчанию для основного листа
             if self.sheet_names:
                 if self.sheet_name.get() in self.sheet_names:
                     self.sheet_combobox.set(self.sheet_name.get())
@@ -112,7 +125,7 @@ class BusinessProcessGUI:
         main_frame.columnconfigure(1, weight=1)
         
         # Заголовок
-        title_label = ttk.Label(main_frame, text="Генератор диаграмм бизнес-процессов v2.1", 
+        title_label = ttk.Label(main_frame, text="Генератор диаграмм бизнес-процессов v3.0", 
                                font=('Arial', 16, 'bold'))
         title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
         
@@ -160,14 +173,48 @@ class BusinessProcessGUI:
             ("📄 Markdown с Mermaid", "md"),
             ("🌐 HTML с Mermaid", "html_mermaid"),
             ("🎮 Интерактивный HTML", "html_interactive"),
-            ("🖼️ HTML с SVG (рекомендуется)", "html_svg")
+            ("🖼️ HTML с SVG (рекомендуется)", "html_svg"),
+            ("🔄 Causal Loop Diagram (Mermaid)", "cld_mermaid"),
+            ("🔄 Causal Loop Diagram (Interactive)", "cld_interactive")
         ]
         
         for i, (text, value) in enumerate(formats):
             rb = ttk.Radiobutton(format_frame, text=text, variable=self.output_format, 
                                 value=value, command=self.on_format_change)
             rb.grid(row=i//2, column=i%2, sticky=tk.W, padx=(0, 20), pady=2)
-        row += 2
+        row += 3
+        
+        # Секция настроек CLD (изначально скрыта)
+        self.cld_frame = ttk.LabelFrame(main_frame, text="Настройки Causal Loop Diagram", padding="10")
+        self.cld_frame.grid(row=row, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
+        self.cld_frame.grid_remove()  # Скрываем по умолчанию
+        
+        # Источник данных CLD
+        ttk.Label(self.cld_frame, text="Источник данных:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        source_frame = ttk.Frame(self.cld_frame)
+        source_frame.grid(row=0, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=2)
+        
+        ttk.Radiobutton(source_frame, text="Авто из бизнес-процессов", 
+                       variable=self.cld_source_type, value="auto", 
+                       command=self.on_cld_source_change).grid(row=0, column=0, sticky=tk.W)
+        ttk.Radiobutton(source_frame, text="Из отдельного листа", 
+                       variable=self.cld_source_type, value="manual",
+                       command=self.on_cld_source_change).grid(row=0, column=1, sticky=tk.W, padx=(20, 0))
+        
+        # Выбор листа для CLD
+        ttk.Label(self.cld_frame, text="Лист CLD данных:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        self.cld_sheet_combobox = ttk.Combobox(self.cld_frame, textvariable=self.cld_sheet_name, 
+                                              state="readonly", width=30)
+        self.cld_sheet_combobox.grid(row=1, column=1, sticky=tk.W, pady=2)
+        self.cld_sheet_combobox.bind('<<ComboboxSelected>>', self.on_cld_sheet_selected)
+        
+        # Настройки отображения CLD
+        ttk.Checkbutton(self.cld_frame, text="Показывать операции на связях",
+                       variable=self.show_cld_operations).grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=2)
+        ttk.Checkbutton(self.cld_frame, text="Показывать знаки влияния (+/-)",
+                       variable=self.cld_influence_signs).grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=2)
+        
+        row += 1
         
         # Группировка
         ttk.Label(main_frame, text="Группировка операций:").grid(row=row, column=0, sticky=tk.W, pady=2)
@@ -242,10 +289,15 @@ class BusinessProcessGUI:
         # Инициализация состояния
         self.on_format_change()
         self.on_grouping_change()
+        self.on_cld_source_change()
     
     def on_sheet_selected(self, event):
         """Обработка выбора листа"""
         self.sheet_name.set(self.sheet_combobox.get())
+    
+    def on_cld_sheet_selected(self, event):
+        """Обработка выбора листа для CLD"""
+        self.cld_sheet_name.set(self.cld_sheet_combobox.get())
     
     def browse_file(self):
         """Выбор файла через диалоговое окно"""
@@ -265,14 +317,30 @@ class BusinessProcessGUI:
     
     def on_format_change(self):
         """Обработка изменения формата вывода"""
-        if self.output_format.get() == "html_interactive":
+        current_format = self.output_format.get()
+        
+        # Показываем/скрываем секцию CLD настроек
+        if current_format in ["cld_mermaid", "cld_interactive"]:
+            self.cld_frame.grid()  # Показываем
+        else:
+            self.cld_frame.grid_remove()  # Скрываем
+        
+        # Ограничения для других форматов
+        if current_format == "html_interactive":
             self.no_grouping.set(True)
             self.show_detailed.set(False)
             self.on_grouping_change()
-        elif self.output_format.get() == "html_svg":
+        elif current_format == "html_svg":
             self.no_grouping.set(True)
             self.show_detailed.set(True)
             self.on_grouping_change()
+    
+    def on_cld_source_change(self):
+        """Обработчик изменения источника CLD данных"""
+        if self.cld_source_type.get() == "manual":
+            self.cld_sheet_combobox.config(state="readonly")
+        else:
+            self.cld_sheet_combobox.config(state="disabled")
     
     def on_grouping_change(self):
         """Обработка изменения группировки"""
@@ -287,6 +355,8 @@ class BusinessProcessGUI:
         self.sheet_name.set('')
         self.sheet_combobox.set('')
         self.sheet_combobox['values'] = []
+        self.cld_sheet_combobox.set('')
+        self.cld_sheet_combobox['values'] = []
         self.output_base.set('business_process_diagram')
         self.output_format.set('html_svg')
         self.subgroup_column.set('')
@@ -295,11 +365,18 @@ class BusinessProcessGUI:
         self.critical_min_reuse.set(CRITICAL_MIN_REUSE)
         self.no_grouping.set(True)
         
+        # Сброс настроек CLD
+        self.cld_source_type.set('auto')
+        self.cld_sheet_name.set('')
+        self.show_cld_operations.set(True)
+        self.cld_influence_signs.set(True)
+        
         if self.config_file.exists():
             self.config_file.unlink()
         
         self.on_format_change()
         self.on_grouping_change()
+        self.on_cld_source_change()
         self.status_var.set("Настройки сброшены. Выберите файл Excel.")
         messagebox.showinfo("Сброс настроек", "Настройки сброшены к значениям по умолчанию")
     
@@ -323,6 +400,34 @@ class BusinessProcessGUI:
             messagebox.showerror("Ошибка", "Введите имя для выходного файла")
             return
         
+        # 🔥 УЛУЧШЕННАЯ ВАЛИДАЦИЯ ДЛЯ CLD ФОРМАТОВ
+        current_format = self.output_format.get()
+        if current_format in ["cld_mermaid", "cld_interactive"]:
+            if self.cld_source_type.get() == "manual" and not self.cld_sheet_name.get():
+                messagebox.showerror("Ошибка", 
+                    "Для ручного источника CLD данных выберите лист с CLD данными.\n\n"
+                    "Если вы хотите использовать автоматическое построение CLD из бизнес-процессов, "
+                    "измените 'Источник данных' на 'Авто из бизнес-процессов'.")
+                return
+            
+            # Предупреждение если выбран автоматический источник но нет основного листа с бизнес-процессами
+            if self.cld_source_type.get() == "auto":
+                try:
+                    # Проверим что основной лист содержит данные бизнес-процессов
+                    df_test = pd.read_excel(excel_path, sheet_name=self.sheet_name.get(), engine="openpyxl", nrows=1)
+                    if not {'Операция', 'Входы', 'Выход'}.issubset(set(df_test.columns)):
+                        result = messagebox.askquestion(
+                            "Предупреждение", 
+                            f"Выбранный основной лист '{self.sheet_name.get()}' не содержит стандартных колонок бизнес-процессов (Операция, Входы, Выход).\n\n"
+                            f"Для автоматического построения CLD нужны данные бизнес-процессов.\n\n"
+                            f"Хотите продолжить или изменить настройки?",
+                            icon='warning'
+                        )
+                        if result != 'yes':
+                            return
+                except Exception as e:
+                    print(f"Предварительная проверка листа: {e}")
+        
         try:
             self.status_var.set("Генерация диаграммы...")
             self.root.update_idletasks()
@@ -334,7 +439,12 @@ class BusinessProcessGUI:
                 critical_min_inputs=self.critical_min_inputs.get(),
                 critical_min_reuse=self.critical_min_reuse.get(),
                 no_grouping=self.no_grouping.get(),
-                output_format=self.output_format.get()
+                output_format=self.output_format.get(),
+                # CLD настройки
+                cld_source_type=self.cld_source_type.get(),
+                cld_sheet_name=self.cld_sheet_name.get(),
+                show_cld_operations=self.show_cld_operations.get(),
+                cld_influence_signs=self.cld_influence_signs.get()
             )
             
             # Сохранение конфигурации

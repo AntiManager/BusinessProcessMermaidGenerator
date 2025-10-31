@@ -118,3 +118,22 @@ def collect_operations(df: pd.DataFrame, choices: Choices) -> Dict[str, Operatio
         )
     
     return operations
+
+def load_cld_data(excel_path: str, sheet_name: str) -> pd.DataFrame:
+    """
+    Загружает данные для CLD из отдельного листа Excel
+    """
+    try:
+        df = pd.read_excel(excel_path, sheet_name=sheet_name, engine="openpyxl")
+        
+        # Проверяем обязательные колонки
+        required_columns = {"Источник", "Цель", "Знак влияния"}
+        missing = required_columns - set(df.columns)
+        if missing:
+            raise ValueError(f"Отсутствуют обязательные колонки для CLD: {missing}")
+            
+        return df
+        
+    except Exception as e:
+        print(f"Ошибка загрузки CLD данных: {e}")
+        return None
