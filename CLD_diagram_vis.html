@@ -1,0 +1,1987 @@
+
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Causal Loop Diagram - Интерактивный граф</title>
+        <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                margin: 0;
+                padding: 0;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                overflow: hidden;
+                height: 100vh;
+            }
+            .container {
+                display: flex;
+                height: 100vh;
+                width: 100vw;
+                gap: 0;
+            }
+            .sidebar {
+                width: 350px;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                padding: 25px;
+                overflow-y: auto;
+                border-right: 1px solid rgba(255, 255, 255, 0.2);
+                box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+                z-index: 1000;
+            }
+            .diagram {
+                flex: 1;
+                background: #f8f9fa;
+                position: relative;
+                overflow: hidden;
+            }
+            .header {
+                background: linear-gradient(135deg, #2c3e50, #34495e);
+                color: white;
+                padding: 20px;
+                border-radius: 10px;
+                margin-bottom: 20px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            }
+            .header h2 {
+                margin: 0;
+                font-size: 1.5em;
+                font-weight: 300;
+            }
+            .header p {
+                margin: 5px 0 0 0;
+                opacity: 0.8;
+                font-size: 0.9em;
+            }
+            .statistics {
+                background: white;
+                padding: 20px;
+                border-radius: 10px;
+                margin-bottom: 25px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                border-left: 4px solid #3498db;
+            }
+            .statistics h3 {
+                color: #2c3e50;
+                margin-bottom: 15px;
+                font-size: 1.2em;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .statistics h3::before {
+                content: "📊";
+                font-size: 1.1em;
+            }
+            .stat-item {
+                display: flex;
+                justify-content: space-between;
+                margin: 8px 0;
+                padding: 6px 0;
+                border-bottom: 1px solid #ecf0f1;
+            }
+            .stat-item:last-child {
+                border-bottom: none;
+            }
+            .stat-value {
+                font-weight: bold;
+                color: #2c3e50;
+            }
+            .feedback-section {
+                background: white;
+                padding: 20px;
+                border-radius: 10px;
+                margin-bottom: 25px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                border-left: 4px solid #e74c3c;
+            }
+            .feedback-section h3 {
+                color: #2c3e50;
+                margin-bottom: 15px;
+                font-size: 1.2em;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .feedback-section h3::before {
+                content: "🔄";
+                font-size: 1.1em;
+            }
+            .feedback-loop {
+                background: #fffaf0;
+                padding: 12px;
+                margin: 8px 0;
+                border-radius: 6px;
+                border: 1px solid #ffeaa7;
+                font-size: 0.9em;
+                line-height: 1.4;
+            }
+            .controls {
+                background: white;
+                padding: 20px;
+                border-radius: 10px;
+                margin-bottom: 25px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                border-left: 4px solid #27ae60;
+            }
+            .controls h3 {
+                color: #2c3e50;
+                margin-bottom: 15px;
+                font-size: 1.2em;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .controls h3::before {
+                content: "🎮";
+                font-size: 1.1em;
+            }
+            .control-buttons {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+                margin-bottom: 15px;
+            }
+            button {
+                padding: 10px 15px;
+                background: linear-gradient(135deg, #3498db, #2980b9);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 0.9em;
+                transition: all 0.3s ease;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            }
+            button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+                background: linear-gradient(135deg, #2980b9, #2471a3);
+            }
+            button:active {
+                transform: translateY(0);
+            }
+            .physics-toggle {
+                background: linear-gradient(135deg, #e74c3c, #c0392b);
+            }
+            .node-info {
+                background: white;
+                padding: 20px;
+                border-radius: 10px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                border-left: 4px solid #9b59b6;
+            }
+            .node-info h3 {
+                color: #2c3e50;
+                margin-bottom: 15px;
+                font-size: 1.2em;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .node-info h3::before {
+                content: "ℹ️";
+                font-size: 1.1em;
+            }
+            #node-info {
+                max-height: 200px;
+                overflow-y: auto;
+                line-height: 1.5;
+                color: #555;
+            }
+            #network {
+                width: 100%;
+                height: 100%;
+                border: none;
+            }
+            .legend {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                margin-top: 15px;
+                padding: 15px;
+                background: rgba(255,255,255,0.9);
+                border-radius: 6px;
+            }
+            .legend-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 0.9em;
+            }
+            .legend-color {
+                width: 16px;
+                height: 16px;
+                border-radius: 50%;
+                border: 2px solid;
+            }
+            .positive { background: #2e7d32; border-color: #1b5e20; }
+            .negative { background: #c62828; border-color: #b71c1c; }
+            .variable { background: #e3f2fd; border-color: #1976d2; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="sidebar">
+                <div class="header">
+                    <h2>🌐 Causal Loop Diagram</h2>
+                    <p>Диаграмма причинно-следственных связей</p>
+                </div>
+                
+                <div class="statistics">
+                    <h3>Статистика системы</h3>
+                    <div class="stat-item">
+                        <span>Переменные:</span>
+                        <span class="stat-value" id="stats-variables">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Связи:</span>
+                        <span class="stat-value" id="stats-links">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Положительные влияния:</span>
+                        <span class="stat-value" id="stats-positive">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Отрицательные влияния:</span>
+                        <span class="stat-value" id="stats-negative">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Петли обратной связи:</span>
+                        <span class="stat-value" id="stats-loops">0</span>
+                    </div>
+                </div>
+
+                <div class="feedback-section" id="feedback-section">
+                    <h3>Петли обратной связи</h3>
+                    <div id="feedback-loops"></div>
+                </div>
+
+                <div class="controls">
+                    <h3>Управление графом</h3>
+                    <div class="control-buttons">
+                        <button onclick="fitToScreen()" title="Вписать в экран">🔍 Вписать</button>
+                        <button onclick="resetZoom()" title="Сбросить масштаб">🎯 Сброс</button>
+                        <button onclick="togglePhysics()" id="physicsBtn" title="Переключить физику">⚡ Физика: Вкл</button>
+                        <button onclick="stabilize()" title="Стабилизировать граф">🔄 Стабилизация</button>
+                    </div>
+                    <div class="legend">
+                        <div class="legend-item">
+                            <div class="legend-color variable"></div>
+                            <span>Переменные системы</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color positive"></div>
+                            <span>Положительное влияние (+) </span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color negative"></div>
+                            <span>Отрицательное влияние (-) </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="node-info">
+                    <h3>Информация об элементе</h3>
+                    <div id="node-info">👆 Выберите элемент на диаграмме для просмотра информации</div>
+                </div>
+            </div>
+
+            <div class="diagram">
+                <div id="network"></div>
+            </div>
+        </div>
+
+        <script>
+            // Данные диаграммы
+            const diagramData = {
+  "nodes": [
+    {
+      "id": "Внешняя_экономика",
+      "label": "Внешняя экономика",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Время_доставки",
+      "label": "Время доставки",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Время_обработки",
+      "label": "Время обработки",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Выручка",
+      "label": "Выручка",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Загрузка_склада",
+      "label": "Загрузка склада",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Затраты",
+      "label": "Затраты",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Затраты_на_поддержку",
+      "label": "Затраты на поддержку",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Инвестиции_в_качество",
+      "label": "Инвестиции в качество",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Качество_продукции",
+      "label": "Качество продукции",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Количество_жалоб",
+      "label": "Количество жалоб",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Количество_заказов",
+      "label": "Количество заказов",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Количество_клиентов",
+      "label": "Количество клиентов",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Конкуренция",
+      "label": "Конкуренция",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Лояльность_клиентов",
+      "label": "Лояльность клиентов",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Обучение_персонала",
+      "label": "Обучение персонала",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Погодные_условия",
+      "label": "Погодные условия",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Прибыль",
+      "label": "Прибыль",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Рекламный_бюджет",
+      "label": "Рекламный бюджет",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Сезонность",
+      "label": "Сезонность",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Скорость_ответа_на_запросы",
+      "label": "Скорость ответа на запросы",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Технологические_инновации",
+      "label": "Технологические инновации",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Удовлетворенность_клиентов",
+      "label": "Удовлетворенность клиентов",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Уровень_сервиса",
+      "label": "Уровень сервиса",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Цены",
+      "label": "Цены",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Эффективность_логистики",
+      "label": "Эффективность логистики",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    },
+    {
+      "id": "Эффективность_работы",
+      "label": "Эффективность работы",
+      "shape": "ellipse",
+      "color": {
+        "background": "#e3f2fd",
+        "border": "#1976d2",
+        "highlight": {
+          "background": "#bbdefb",
+          "border": "#1976d2"
+        }
+      },
+      "font": {
+        "size": 16,
+        "face": "Arial"
+      },
+      "margin": 12,
+      "widthConstraint": {
+        "minimum": 100,
+        "maximum": 200
+      },
+      "shadow": true
+    }
+  ],
+  "edges": [
+    {
+      "from": "Количество_клиентов",
+      "to": "Количество_заказов",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Количество клиентов</b> → <b>Количество заказов</b><br>Влияние: +<br>Операция: Маркетинг<br>Сила влияния: Высокая<br>Описание: Чем больше клиентов, тем больше заказов",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Маркетинг"
+    },
+    {
+      "from": "Количество_заказов",
+      "to": "Загрузка_склада",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Количество заказов</b> → <b>Загрузка склада</b><br>Влияние: +<br>Операция: Обработка заказов<br>Сила влияния: Средняя<br>Описание: Рост заказов увеличивает нагрузку на склад",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Обработка за..."
+    },
+    {
+      "from": "Загрузка_склада",
+      "to": "Время_обработки",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Загрузка склада</b> → <b>Время обработки</b><br>Влияние: +<br>Операция: Складские процессы<br>Сила влияния: Высокая<br>Описание: Высокая загрузка увеличивает время обработки",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Складские пр..."
+    },
+    {
+      "from": "Время_обработки",
+      "to": "Удовлетворенность_клиентов",
+      "color": {
+        "color": "#c62828",
+        "highlight": "#c62828",
+        "hover": "#c62828"
+      },
+      "arrows": "to",
+      "title": "<b>Время обработки</b> → <b>Удовлетворенность клиентов</b><br>Влияние: -<br>Операция: Обслуживание<br>Сила влияния: Высокая<br>Описание: Долгая обработка снижает удовлетворенность",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "dashes": true,
+      "label": "- Обслуживание"
+    },
+    {
+      "from": "Удовлетворенность_клиентов",
+      "to": "Количество_клиентов",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Удовлетворенность клиентов</b> → <b>Количество клиентов</b><br>Влияние: +<br>Операция: Удержание клиентов<br>Сила влияния: Средняя<br>Описание: Довольные клиенты приводят новых",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Удержание кл..."
+    },
+    {
+      "from": "Удовлетворенность_клиентов",
+      "to": "Количество_жалоб",
+      "color": {
+        "color": "#c62828",
+        "highlight": "#c62828",
+        "hover": "#c62828"
+      },
+      "arrows": "to",
+      "title": "<b>Удовлетворенность клиентов</b> → <b>Количество жалоб</b><br>Влияние: -<br>Операция: Обратная связь<br>Сила влияния: Высокая<br>Описание: Низкая удовлетворенность ведет к жалобам",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "dashes": true,
+      "label": "- Обратная связь"
+    },
+    {
+      "from": "Количество_жалоб",
+      "to": "Затраты_на_поддержку",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Количество жалоб</b> → <b>Затраты на поддержку</b><br>Влияние: +<br>Операция: Сервис<br>Сила влияния: Средняя<br>Описание: Жалобы требуют ресурсов на обработку",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Сервис"
+    },
+    {
+      "from": "Затраты_на_поддержку",
+      "to": "Прибыль",
+      "color": {
+        "color": "#c62828",
+        "highlight": "#c62828",
+        "hover": "#c62828"
+      },
+      "arrows": "to",
+      "title": "<b>Затраты на поддержку</b> → <b>Прибыль</b><br>Влияние: -<br>Операция: Финансы<br>Сила влияния: Средняя<br>Описание: Рост затрат снижает прибыль",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "dashes": true,
+      "label": "- Финансы"
+    },
+    {
+      "from": "Прибыль",
+      "to": "Инвестиции_в_качество",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Прибыль</b> → <b>Инвестиции в качество</b><br>Влияние: +<br>Операция: Развитие<br>Сила влияния: Низкая<br>Описание: Прибыль позволяет инвестировать в качество",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Развитие"
+    },
+    {
+      "from": "Инвестиции_в_качество",
+      "to": "Качество_продукции",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Инвестиции в качество</b> → <b>Качество продукции</b><br>Влияние: +<br>Операция: Производство<br>Сила влияния: Высокая<br>Описание: Инвестиции улучшают качество",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Производство"
+    },
+    {
+      "from": "Качество_продукции",
+      "to": "Количество_жалоб",
+      "color": {
+        "color": "#c62828",
+        "highlight": "#c62828",
+        "hover": "#c62828"
+      },
+      "arrows": "to",
+      "title": "<b>Качество продукции</b> → <b>Количество жалоб</b><br>Влияние: -<br>Операция: Контроль качества<br>Сила влияния: Высокая<br>Описание: Высокое качество снижает жалобы",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "dashes": true,
+      "label": "- Контроль кач..."
+    },
+    {
+      "from": "Качество_продукции",
+      "to": "Удовлетворенность_клиентов",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Качество продукции</b> → <b>Удовлетворенность клиентов</b><br>Влияние: +<br>Операция: Восприятие клиентов<br>Сила влияния: Высокая<br>Описание: Качество повышает удовлетворенность",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Восприятие к..."
+    },
+    {
+      "from": "Количество_заказов",
+      "to": "Выручка",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Количество заказов</b> → <b>Выручка</b><br>Влияние: +<br>Операция: Продажи<br>Сила влияния: Высокая<br>Описание: Заказы напрямую влияют на выручку",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Продажи"
+    },
+    {
+      "from": "Выручка",
+      "to": "Прибыль",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Выручка</b> → <b>Прибыль</b><br>Влияние: +<br>Операция: Финансы<br>Сила влияния: Средняя<br>Описание: Рост выручки увеличивает прибыль",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Финансы"
+    },
+    {
+      "from": "Цены",
+      "to": "Количество_заказов",
+      "color": {
+        "color": "#c62828",
+        "highlight": "#c62828",
+        "hover": "#c62828"
+      },
+      "arrows": "to",
+      "title": "<b>Цены</b> → <b>Количество заказов</b><br>Влияние: -<br>Операция: Ценообразование<br>Сила влияния: Средняя<br>Описание: Высокие цены могут снижать количество заказов",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "dashes": true,
+      "label": "- Ценообразование"
+    },
+    {
+      "from": "Цены",
+      "to": "Выручка",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Цены</b> → <b>Выручка</b><br>Влияние: +<br>Операция: Финансы<br>Сила влияния: Высокая<br>Описание: Рост цен увеличивает выручку при прочих равных",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Финансы"
+    },
+    {
+      "from": "Конкуренция",
+      "to": "Количество_клиентов",
+      "color": {
+        "color": "#c62828",
+        "highlight": "#c62828",
+        "hover": "#c62828"
+      },
+      "arrows": "to",
+      "title": "<b>Конкуренция</b> → <b>Количество клиентов</b><br>Влияние: -<br>Операция: Рынок<br>Сила влияния: Высокая<br>Описание: Высокая конкуренция снижает приток клиентов",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "dashes": true,
+      "label": "- Рынок"
+    },
+    {
+      "from": "Качество_продукции",
+      "to": "Лояльность_клиентов",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Качество продукции</b> → <b>Лояльность клиентов</b><br>Влияние: +<br>Операция: Маркетинг<br>Сила влияния: Высокая<br>Описание: Качество повышает лояльность",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Маркетинг"
+    },
+    {
+      "from": "Лояльность_клиентов",
+      "to": "Количество_клиентов",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Лояльность клиентов</b> → <b>Количество клиентов</b><br>Влияние: +<br>Операция: Удержание<br>Сила влияния: Средняя<br>Описание: Лояльные клиенты остаются и рекомендуют",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Удержание"
+    },
+    {
+      "from": "Рекламный_бюджет",
+      "to": "Количество_клиентов",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Рекламный бюджет</b> → <b>Количество клиентов</b><br>Влияние: +<br>Операция: Маркетинг<br>Сила влияния: Высокая<br>Описание: Реклама привлекает новых клиентов",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Маркетинг"
+    },
+    {
+      "from": "Рекламный_бюджет",
+      "to": "Затраты",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Рекламный бюджет</b> → <b>Затраты</b><br>Влияние: +<br>Операция: Финансы<br>Сила влияния: Высокая<br>Описание: Реклама увеличивает затраты",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Финансы"
+    },
+    {
+      "from": "Затраты",
+      "to": "Прибыль",
+      "color": {
+        "color": "#c62828",
+        "highlight": "#c62828",
+        "hover": "#c62828"
+      },
+      "arrows": "to",
+      "title": "<b>Затраты</b> → <b>Прибыль</b><br>Влияние: -<br>Операция: Финансы<br>Сила влияния: Высокая<br>Описание: Рост затрат снижает прибыль",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "dashes": true,
+      "label": "- Финансы"
+    },
+    {
+      "from": "Эффективность_логистики",
+      "to": "Время_доставки",
+      "color": {
+        "color": "#c62828",
+        "highlight": "#c62828",
+        "hover": "#c62828"
+      },
+      "arrows": "to",
+      "title": "<b>Эффективность логистики</b> → <b>Время доставки</b><br>Влияние: -<br>Операция: Логистика<br>Сила влияния: Высокая<br>Описание: Эффективная логистика ускоряет доставку",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "dashes": true,
+      "label": "- Логистика"
+    },
+    {
+      "from": "Время_доставки",
+      "to": "Удовлетворенность_клиентов",
+      "color": {
+        "color": "#c62828",
+        "highlight": "#c62828",
+        "hover": "#c62828"
+      },
+      "arrows": "to",
+      "title": "<b>Время доставки</b> → <b>Удовлетворенность клиентов</b><br>Влияние: -<br>Операция: Сервис<br>Сила влияния: Средняя<br>Описание: Быстрая доставка повышает удовлетворенность",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "dashes": true,
+      "label": "- Сервис"
+    },
+    {
+      "from": "Обучение_персонала",
+      "to": "Эффективность_работы",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Обучение персонала</b> → <b>Эффективность работы</b><br>Влияние: +<br>Операция: HR<br>Сила влияния: Средняя<br>Описание: Обучение повышает эффективность",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ HR"
+    },
+    {
+      "from": "Эффективность_работы",
+      "to": "Затраты",
+      "color": {
+        "color": "#c62828",
+        "highlight": "#c62828",
+        "hover": "#c62828"
+      },
+      "arrows": "to",
+      "title": "<b>Эффективность работы</b> → <b>Затраты</b><br>Влияние: -<br>Операция: Операции<br>Сила влияния: Низкая<br>Описание: Эффективность снижает операционные затраты",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "dashes": true,
+      "label": "- Операции"
+    },
+    {
+      "from": "Сезонность",
+      "to": "Количество_заказов",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Сезонность</b> → <b>Количество заказов</b><br>Влияние: +<br>Операция: Внешние факторы<br>Сила влияния: Высокая<br>Описание: Сезонность влияет на спрос",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Внешние факторы"
+    },
+    {
+      "from": "Технологические_инновации",
+      "to": "Эффективность_работы",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Технологические инновации</b> → <b>Эффективность работы</b><br>Влияние: +<br>Операция: IT<br>Сила влияния: Высокая<br>Описание: Инновации повышают эффективность",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ IT"
+    },
+    {
+      "from": "Уровень_сервиса",
+      "to": "Удовлетворенность_клиентов",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Уровень сервиса</b> → <b>Удовлетворенность клиентов</b><br>Влияние: +<br>Операция: Сервис<br>Сила влияния: Высокая<br>Описание: Качество сервиса влияет на удовлетворенность",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Сервис"
+    },
+    {
+      "from": "Скорость_ответа_на_запросы",
+      "to": "Уровень_сервиса",
+      "color": {
+        "color": "#2e7d32",
+        "highlight": "#2e7d32",
+        "hover": "#2e7d32"
+      },
+      "arrows": "to",
+      "title": "<b>Скорость ответа на запросы</b> → <b>Уровень сервиса</b><br>Влияние: +<br>Операция: Поддержка<br>Сила влияния: Средняя<br>Описание: Быстрые ответы улучшают сервис",
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.2
+      },
+      "width": 2,
+      "shadow": true,
+      "font": {
+        "color": "#333",
+        "size": 12,
+        "face": "Arial",
+        "strokeWidth": 0
+      },
+      "label": "+ Поддержка"
+    }
+  ],
+  "feedback_loops": [
+    [
+      "Количество клиентов",
+      "Количество заказов",
+      "Загрузка склада",
+      "Время обработки",
+      "Удовлетворенность клиентов"
+    ],
+    [
+      "Количество жалоб",
+      "Затраты на поддержку",
+      "Прибыль",
+      "Инвестиции в качество",
+      "Качество продукции"
+    ],
+    [
+      "Удовлетворенность клиентов",
+      "Количество жалоб",
+      "Затраты на поддержку",
+      "Прибыль",
+      "Инвестиции в качество",
+      "Качество продукции"
+    ],
+    [
+      "Количество клиентов",
+      "Количество заказов",
+      "Загрузка склада",
+      "Время обработки",
+      "Удовлетворенность клиентов",
+      "Количество жалоб",
+      "Затраты на поддержку",
+      "Прибыль",
+      "Инвестиции в качество",
+      "Качество продукции",
+      "Лояльность клиентов"
+    ]
+  ],
+  "statistics": {
+    "variables": 26,
+    "links": 30,
+    "positive_links": 20,
+    "negative_links": 10,
+    "loops": 4
+  }
+};
+
+            // Инициализация сети
+            let network = null;
+            let physicsEnabled = true;
+
+            function initNetwork() {
+                const container = document.getElementById('network');
+                
+                const data = {
+                    nodes: new vis.DataSet(diagramData.nodes.map(node => ({
+                        ...node,
+                        borderWidth: 2,
+                        shadow: true,
+                        font: { 
+                            size: 14, 
+                            face: 'Arial',
+                            color: '#2c3e50',
+                            strokeWidth: 2,
+                            strokeColor: 'rgba(255,255,255,0.8)'
+                        }
+                    }))),
+                    edges: new vis.DataSet(diagramData.edges.map(edge => ({
+                        ...edge,
+                        width: 2,
+                        shadow: true,
+                        font: { 
+                            size: 12, 
+                            face: 'Arial',
+                            color: '#333',
+                            strokeWidth: 2,
+                            strokeColor: 'rgba(255,255,255,0.8)'
+                        },
+                        smooth: {
+                            enabled: true,
+                            type: 'curvedCCW',
+                            roundness: 0.2
+                        }
+                    })))
+                };
+
+                const options = {
+                    layout: {
+                        improvedLayout: true,
+                        hierarchical: {
+                            enabled: false,
+                            direction: 'LR',
+                            sortMethod: 'directed'
+                        }
+                    },
+                    physics: {
+                        enabled: true,
+                        stabilization: { 
+                            iterations: 1000,
+                            updateInterval: 25
+                        },
+                        barnesHut: {
+                            gravitationalConstant: -8000,
+                            springConstant: 0.04,
+                            springLength: 150,
+                            damping: 0.09
+                        }
+                    },
+                    interaction: {
+                        dragNodes: true,
+                        dragView: true,
+                        zoomView: true,
+                        hover: true,
+                        hoverConnectedEdges: true,
+                        selectable: true,
+                        selectConnectedEdges: true
+                    },
+                    nodes: {
+                        shape: 'ellipse',
+                        margin: 10,
+                        widthConstraint: {
+                            minimum: 100,
+                            maximum: 200
+                        },
+                        scaling: {
+                            min: 10,
+                            max: 30
+                        }
+                    },
+                    edges: {
+                        smooth: true,
+                        scaling: {
+                            min: 1,
+                            max: 3
+                        },
+                        hoverWidth: 1.5
+                    },
+                    groups: {
+                        useDefaultGroups: false
+                    }
+                };
+
+                network = new vis.Network(container, data, options);
+
+                // Обработчики событий
+                network.on("click", function(params) {
+                    if (params.nodes.length > 0) {
+                        const nodeId = params.nodes[0];
+                        showNodeInfo(nodeId);
+                    } else if (params.edges.length > 0) {
+                        const edgeId = params.edges[0];
+                        showEdgeInfo(edgeId);
+                    } else {
+                        document.getElementById('node-info').innerHTML = 
+                            '👆 Выберите элемент на диаграмме для просмотра информации';
+                    }
+                });
+
+                network.on("doubleClick", function(params) {
+                    if (params.nodes.length > 0) {
+                        network.focus(params.nodes[0], { 
+                            scale: 1.2, 
+                            animation: { 
+                                duration: 1000,
+                                easingFunction: 'easeInOutQuad'
+                            } 
+                        });
+                    }
+                });
+
+                network.on("stabilizationIterationsDone", function() {
+                    network.fit({ animation: true });
+                });
+
+                network.on("stabilized", function() {
+                    console.log("Граф стабилизирован");
+                });
+
+                // Заполняем статистику
+                updateStatistics();
+                
+                // Автоматически подгоняем под экран после стабилизации
+                setTimeout(() => {
+                    fitToScreen();
+                }, 500);
+            }
+
+            function showNodeInfo(nodeId) {
+                const node = diagramData.nodes.find(n => n.id === nodeId);
+                if (!node) return;
+
+                // Находим связанные связи
+                const incoming = diagramData.edges.filter(e => e.to === nodeId);
+                const outgoing = diagramData.edges.filter(e => e.from === nodeId);
+
+                let info = `<div style="margin-bottom: 15px;">
+                    <h4 style="color: #2c3e50; margin-bottom: 10px;">📊 ${node.label}</h4>
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                        <strong>Тип:</strong> Переменная системы<br>
+                        <strong>ID:</strong> ${node.id}
+                    </div>
+                </div>`;
+
+                if (incoming.length > 0) {
+                    info += `<div style="margin-bottom: 15px;">
+                        <strong>📥 Входящие связи (${incoming.length}):</strong><br>`;
+                    incoming.forEach(edge => {
+                        const sourceNode = diagramData.nodes.find(n => n.id === edge.from);
+                        const influence = edge.label ? edge.label.split(' ')[0] : '+';
+                        const color = influence === '+' ? '#2e7d32' : '#c62828';
+                        info += `<div style="margin: 5px 0; padding: 5px; background: ${color}10; border-radius: 3px; border-left: 3px solid ${color};">
+                            <span style="color: ${color}; font-weight: bold;">${influence}</span> 
+                            ${sourceNode ? sourceNode.label : edge.from} → ${node.label}
+                        </div>`;
+                    });
+                    info += `</div>`;
+                }
+
+                if (outgoing.length > 0) {
+                    info += `<div>
+                        <strong>📤 Исходящие связи (${outgoing.length}):</strong><br>`;
+                    outgoing.forEach(edge => {
+                        const targetNode = diagramData.nodes.find(n => n.id === edge.to);
+                        const influence = edge.label ? edge.label.split(' ')[0] : '+';
+                        const color = influence === '+' ? '#2e7d32' : '#c62828';
+                        info += `<div style="margin: 5px 0; padding: 5px; background: ${color}10; border-radius: 3px; border-left: 3px solid ${color};">
+                            <span style="color: ${color}; font-weight: bold;">${influence}</span> 
+                            ${node.label} → ${targetNode ? targetNode.label : edge.to}
+                        </div>`;
+                    });
+                    info += `</div>`;
+                }
+
+                document.getElementById('node-info').innerHTML = info;
+            }
+
+            function showEdgeInfo(edgeId) {
+                const edge = diagramData.edges.find(e => 
+                    e.from + '-' + e.to === edgeId || 
+                    (e.label && e.from + '-' + e.to + '-' + e.label === edgeId)
+                );
+                if (!edge) return;
+
+                const sourceNode = diagramData.nodes.find(n => n.id === edge.from);
+                const targetNode = diagramData.nodes.find(n => n.id === edge.to);
+                const influence = edge.label ? edge.label.split(' ')[0] : '+';
+                const color = influence === '+' ? '#2e7d32' : '#c62828';
+
+                let info = `<div style="margin-bottom: 15px;">
+                    <h4 style="color: #2c3e50; margin-bottom: 10px;">🔗 Связь влияния</h4>
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                        <strong>Источник:</strong> ${sourceNode ? sourceNode.label : edge.from}<br>
+                        <strong>Цель:</strong> ${targetNode ? targetNode.label : edge.to}<br>
+                        <strong>Влияние:</strong> <span style="color: ${color}; font-weight: bold;">${influence}</span><br>
+                        ${edge.title ? `<strong>Описание:</strong> ${edge.title.replace(/<br>/g, ', ')}` : ''}
+                    </div>
+                </div>`;
+
+                document.getElementById('node-info').innerHTML = info;
+            }
+
+            function updateStatistics() {
+                document.getElementById('stats-variables').textContent = diagramData.statistics.variables;
+                document.getElementById('stats-links').textContent = diagramData.statistics.links;
+                document.getElementById('stats-positive').textContent = diagramData.statistics.positive_links;
+                document.getElementById('stats-negative').textContent = diagramData.statistics.negative_links;
+                document.getElementById('stats-loops').textContent = diagramData.statistics.loops;
+
+                // Заполняем список петель обратной связи
+                const feedbackContainer = document.getElementById('feedback-loops');
+                if (diagramData.feedback_loops && diagramData.feedback_loops.length > 0) {
+                    let html = '';
+                    diagramData.feedback_loops.forEach((loop, index) => {
+                        html += `<div class="feedback-loop">
+                            <strong>Петля ${index + 1}:</strong><br>
+                            ${loop.join(' → ')}
+                        </div>`;
+                    });
+                    feedbackContainer.innerHTML = html;
+                } else {
+                    feedbackContainer.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">Петли обратной связи не обнаружены</div>';
+                }
+            }
+
+            function fitToScreen() {
+                if (network) {
+                    network.fit({ 
+                        animation: { 
+                            duration: 1000,
+                            easingFunction: 'easeInOutQuad'
+                        } 
+                    });
+                }
+            }
+
+            function resetZoom() {
+                if (network) {
+                    network.moveTo({ 
+                        scale: 1, 
+                        animation: {
+                            duration: 800,
+                            easingFunction: 'easeInOutQuad'
+                        }
+                    });
+                }
+            }
+
+            function togglePhysics() {
+                physicsEnabled = !physicsEnabled;
+                if (network) {
+                    network.setOptions({ 
+                        physics: { enabled: physicsEnabled } 
+                    });
+                }
+                const button = document.getElementById('physicsBtn');
+                button.textContent = '⚡ Физика: ' + (physicsEnabled ? 'Вкл' : 'Выкл');
+                button.style.background = physicsEnabled ? 
+                    'linear-gradient(135deg, #3498db, #2980b9)' : 
+                    'linear-gradient(135deg, #e74c3c, #c0392b)';
+            }
+
+            function stabilize() {
+                if (network) {
+                    network.stabilize(1000);
+                }
+            }
+
+            // Глобальные обработчики клавиш
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'f' || e.key === 'а') { // F или А (русская раскладка)
+                    e.preventDefault();
+                    fitToScreen();
+                } else if (e.key === 'r' || e.key === 'к') { // R или К (русская раскладка)
+                    e.preventDefault();
+                    resetZoom();
+                } else if (e.key === 'p' || e.key === 'з') { // P или З (русская раскладка)
+                    e.preventDefault();
+                    togglePhysics();
+                }
+            });
+
+            // Инициализация при загрузке
+            document.addEventListener('DOMContentLoaded', initNetwork);
+
+            // Обработка изменения размера окна
+            window.addEventListener('resize', function() {
+                setTimeout(fitToScreen, 100);
+            });
+        </script>
+    </body>
+    </html>
+    
