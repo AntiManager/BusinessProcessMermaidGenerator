@@ -62,7 +62,7 @@ def build_cld_mermaid(causal_analysis: CausalAnalysis, choices: Choices) -> str:
 def export_cld_mermaid(causal_analysis: CausalAnalysis, choices: Choices, 
                       output_base: str = None) -> Path:
     """
-    Экспортирует CLD в Markdown файл - ОБНОВЛЕННАЯ ВЕРСИЯ
+    Экспортирует CLD в Markdown файл - ОБНОВЛЕННАЯ ВЕРСИЯ С ВОЗВРАТОМ Path
     """
     if output_base is None:
         output_base = "causal_loop_diagram"
@@ -77,7 +77,15 @@ def export_cld_mermaid(causal_analysis: CausalAnalysis, choices: Choices,
         "# Causal Loop Diagram\n\n",
         "## Диаграмма причинно-следственных связей\n\n",
         mermaid_code,
-        "\n\n## Реестр причинно-следственных связей\n\n"
+        "\n\n## Дополнительные представления\n\n",
+        f"### 🎮 Интерактивная версия\n\n",
+        f"Для более удобного исследования причинно-следственных связей доступна [интерактивная версия]({output_base}_cld.html).\n\n",
+        f"**Возможности интерактивной версии:**\n",
+        f"- 🔍 Динамическое исследование связей\n", 
+        f"- 📊 Автоматическое обнаружение петель обратной связи\n",
+        f"- 🎯 Фильтрация по типам влияния\n",
+        f"- 📈 Расширенная статистика системы\n\n",
+        "## Реестр причинно-следственных связей\n\n"
     ]
     
     # Таблица связей
@@ -111,6 +119,16 @@ def export_cld_mermaid(causal_analysis: CausalAnalysis, choices: Choices,
         content_parts.append("\n## Обнаруженные петли обратной связи\n\n")
         for i, loop in enumerate(causal_analysis.feedback_loops, 1):
             content_parts.append(f"{i}. {' → '.join(loop)}\n")
+    
+    # Статистика
+    content_parts.extend([
+        f"\n\n## Статистика системы\n\n",
+        f"- **Переменных**: {len(causal_analysis.variables)}\n",
+        f"- **Связей**: {len([l for l in causal_analysis.links if l.include_in_cld])}\n",
+        f"- **Положительных влияний**: {len([l for l in causal_analysis.links if l.include_in_cld and l.influence == '+' ])}\n",
+        f"- **Отрицательных влияний**: {len([l for l in causal_analysis.links if l.include_in_cld and l.influence == '-' ])}\n",
+        f"- **Петель обратной связи**: {len(causal_analysis.feedback_loops)}\n",
+    ])
     
     # Сохранение файла
     output_file.write_text("".join(content_parts), encoding=ENCODING)

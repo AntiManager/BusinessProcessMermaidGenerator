@@ -33,7 +33,7 @@ def create_simple_table(headers: List[str], data: List[Dict[str, str]]) -> str:
     return '\n'.join(html)
 
 def generate_minimal_html_report(mermaid_code: str, analysis_data: AnalysisData, operations: Dict[str, Operation], 
-                               choices: Choices, available_columns: List[str], output_file: Path) -> None:
+                               choices: Choices, available_columns: List[str], output_file: Path, output_base: str) -> None:
     """
     Генерирует минималистичный HTML отчет с акцентом на диаграмму
     """
@@ -196,6 +196,14 @@ def generate_minimal_html_report(mermaid_code: str, analysis_data: AnalysisData,
             background: #218838;
         }}
         
+        .interactive-btn {{
+            background: #007bff;
+        }}
+        
+        .interactive-btn:hover {{
+            background: #0056b3;
+        }}
+        
         .zoom-info {{
             background: #fff;
             padding: 4px 8px;
@@ -304,6 +312,44 @@ def generate_minimal_html_report(mermaid_code: str, analysis_data: AnalysisData,
             font-size: 0.9em;
         }}
         
+        .interactive-promo {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+        }}
+        
+        .interactive-promo h3 {{
+            margin: 0 0 10px 0;
+            font-size: 1.3em;
+        }}
+        
+        .interactive-promo p {{
+            margin: 0 0 15px 0;
+            opacity: 0.9;
+        }}
+        
+        .promo-btn {{
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }}
+        
+        .promo-btn:hover {{
+            background: white;
+            color: #667eea;
+            transform: translateY(-2px);
+        }}
+        
         @media (max-width: 768px) {{
             .diagram-controls {{
                 justify-content: center;
@@ -336,6 +382,7 @@ def generate_minimal_html_report(mermaid_code: str, analysis_data: AnalysisData,
                     <button class="control-btn" onclick="zoomIn()" title="Увеличить">+</button>
                     <button class="control-btn" onclick="resetView()" title="Сбросить вид">Сброс</button>
                     <button class="control-btn" onclick="fitToScreen()" title="Вместить в экран">Вместить</button>
+                    <button class="control-btn interactive-btn" onclick="openInteractive()" title="Открыть интерактивную версию">🎮 Интерактивная</button>
                     <button class="control-btn download-btn" onclick="downloadPNG()" title="Скачать PNG">PNG</button>
                 </div>
             </div>
@@ -346,6 +393,15 @@ def generate_minimal_html_report(mermaid_code: str, analysis_data: AnalysisData,
             </div>
             <div class="nav-hint">
                 Колесо мыши - масштаб • ЛКМ + перетаскивание - навигация • Ctrl+колесо - точный масштаб
+            </div>
+        </div>
+
+        <!-- ПРОМО БЛОК ИНТЕРАКТИВНОЙ ВЕРСИИ -->
+        <div class="content-section">
+            <div class="interactive-promo">
+                <h3>🎮 Исследуйте интерактивную версию</h3>
+                <p>Получите полный контроль над диаграммой с расширенными возможностями навигации и анализа</p>
+                <a href="{output_base}_vis.html" class="promo-btn" target="_blank">Открыть интерактивную версию</a>
             </div>
         </div>
 
@@ -549,6 +605,12 @@ def generate_minimal_html_report(mermaid_code: str, analysis_data: AnalysisData,
             if (e.key === 'Escape' && isDragging) {{
                 stopDragging();
             }}
+            
+            // I для открытия интерактивной версии
+            if (e.key === 'i' || e.key === 'I') {{
+                e.preventDefault();
+                openInteractive();
+            }}
         }}
         
         function zoomIn() {{
@@ -639,6 +701,10 @@ def generate_minimal_html_report(mermaid_code: str, analysis_data: AnalysisData,
             zoomInfo.textContent = `${{percentage}}%`;
         }}
         
+        function openInteractive() {{
+            window.open('{output_base}_vis.html', '_blank');
+        }}
+        
         function downloadPNG() {{
             const svg = mermaidElement.querySelector('svg');
             if (!svg) {{
@@ -692,9 +758,9 @@ def generate_minimal_html_report(mermaid_code: str, analysis_data: AnalysisData,
     output_file.write_text(html_content, encoding=ENCODING)
 
 def export_html_mermaid(operations: Dict[str, Operation], analysis_data: AnalysisData, 
-                       choices: Choices, available_columns: List[str], output_base: str = None) -> None:
+                       choices: Choices, available_columns: List[str], output_base: str = None) -> Path:
     """
-    Экспортирует диаграмму в минималистичный HTML с акцентом на диаграмму
+    Экспортирует диаграмму в минималистичный HTML с акцентом на диаграмму - ВОЗВРАЩАЕТ Path
     """
     if output_base is None:
         output_base = "business_process_diagram"
@@ -706,7 +772,7 @@ def export_html_mermaid(operations: Dict[str, Operation], analysis_data: Analysi
     mermaid_code = build_mermaid_html(operations, analysis_data, choices)
 
     # Генерация минималистичного HTML отчета
-    generate_minimal_html_report(mermaid_code, analysis_data, operations, choices, available_columns, output_file)
+    generate_minimal_html_report(mermaid_code, analysis_data, operations, choices, available_columns, output_file, output_base)
     
     print(f"\n" + "="*60)
     print("✓ МИНИМАЛИСТИЧНЫЙ HTML-ОТЧЕТ СОЗДАН!")
@@ -714,8 +780,10 @@ def export_html_mermaid(operations: Dict[str, Operation], analysis_data: Analysi
     print(f"Файл: {output_file}")
     print("🎯 ОСОБЕННОСТИ:")
     print("   • 🎯 Диаграмма на первом месте - сразу при открытии")
-    print("   • 🎨 Минималистичный дизайн как в Markdown")
+    print("   • 🎮 Встроенная кнопка для интерактивной версии") 
     print("   • 🔍 Увеличенный масштаб до 1000% для больших процессов")
     print("   • 📊 Чистая статистика после диаграммы")
     print("   • 🖱️  Простая навигация без избыточных элементов")
     print(f"   • 📈 {analysis_data.analysis.operations_count} операций, {len(analysis_data.analysis.critical_points)} критических")
+    
+    return output_file

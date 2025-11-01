@@ -427,11 +427,12 @@ class BusinessProcessGUI:
             success = run_with_gui(excel_path, self.sheet_name.get(), choices, self.output_base.get())
             
             if success:
-                self.status_var.set("Диаграмма успешно создана!")
+                self.status_var.set("Диаграмма успешно создана и открыта в браузере!")
                 messagebox.showinfo("Успех", 
                     f"Диаграмма успешно создана!\n\n"
-                    f"Файл: {self.output_base.get()}.html\n\n"
-                    f"Диаграмма автоматически откроется в браузере.")
+                    f"Основная диаграмма автоматически открывается в браузере.\n\n"
+                    f"Для Markdown и HTML форматов также создана интерактивная версия\n"
+                    f"с суффиксом _vis или _cld.")
             else:
                 self.status_var.set("Ошибка при создании диаграммы")
                 # Сообщение об ошибке будет показано через logging в core_api.py
