@@ -168,21 +168,20 @@ class BusinessProcessGUI:
         ttk.Label(main_frame, text="Формат вывода:", font=('Arial', 10, 'bold')).grid(row=row, column=0, sticky=tk.W, pady=2)
         format_frame = ttk.Frame(main_frame)
         format_frame.grid(row=row, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=2)
-        
+
         formats = [
             ("📄 Markdown с Mermaid", "md"),
-            ("🌐 HTML с Mermaid", "html_mermaid"),
+            ("🌐 HTML с Mermaid (рекомендуется)", "html_mermaid"),
             ("🎮 Интерактивный HTML", "html_interactive"),
-            ("🖼️ HTML с SVG (рекомендуется)", "html_svg"),
             ("🔄 Causal Loop Diagram (Mermaid)", "cld_mermaid"),
             ("🔄 Causal Loop Diagram (Interactive)", "cld_interactive")
         ]
-        
+
         for i, (text, value) in enumerate(formats):
             rb = ttk.Radiobutton(format_frame, text=text, variable=self.output_format, 
                                 value=value, command=self.on_format_change)
-            rb.grid(row=i//2, column=i%2, sticky=tk.W, padx=(0, 20), pady=2)
-        row += 3
+            rb.grid(row=i//3, column=i%3, sticky=tk.W, padx=(0, 20), pady=2)
+        row += 2  # Уменьшил с 3 до 2 тк меньше форматов
         
         # Секция настроек CLD (изначально скрыта)
         self.cld_frame = ttk.LabelFrame(main_frame, text="Настройки Causal Loop Diagram", padding="10")
@@ -269,22 +268,19 @@ class BusinessProcessGUI:
         status_bar.grid(row=row+1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(15, 0))
         
         # Информация о возможностях
-        info_frame = ttk.LabelFrame(main_frame, text="Возможности SVG формата", padding="10")
+        info_frame = ttk.LabelFrame(main_frame, text="Возможности форматов", padding="10")
         info_frame.grid(row=row+2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(15, 0))
         info_frame.columnconfigure(0, weight=1)
-        
+
         features = [
-            "🖱️  ЛКМ - перетаскивание диаграммы",
-            "🔍 Колесо мыши - масштабирование", 
-            "⌨️  Ctrl+колесо - точное масштабирование",
-            "📍 Подсказки при наведении на узлы",
-            "📊 Отображение координат в реальном времени",
-            "💾 Экспорт в PNG с текущим видом",
-            "⛶ Полноэкранный режим"
+            "📄 Markdown - для документации и GitHub",
+            "🌐 HTML с Mermaid - панорамирование и масштабирование", 
+            "🎮 Интерактивный HTML - динамическая навигация",
+            "🔄 Causal Loop - системная динамика и причинно-следственные связи"
         ]
-        
+
         for i, feature in enumerate(features):
-            ttk.Label(info_frame, text=feature).grid(row=i//2, column=i%2, sticky=tk.W, pady=2)
+            ttk.Label(info_frame, text=feature).grid(row=i, column=0, sticky=tk.W, pady=2)
         
         # Инициализация состояния
         self.on_format_change()

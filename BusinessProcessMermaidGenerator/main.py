@@ -11,7 +11,6 @@ from analysis import analyse_network
 from exporters.mermaid_exporter import export_mermaid
 from exporters.html_exporter import export_html_mermaid
 from exporters.interactive_exporter import export_interactive_html
-from exporters.svg_exporter import export_svg_html
 from cld_analyzer import analyze_causal_links_from_operations, analyze_causal_links_from_dataframe
 from exporters.cld_mermaid_exporter import export_cld_mermaid
 from exporters.cld_interactive_exporter import export_cld_interactive
@@ -100,9 +99,8 @@ def run_with_gui(excel_path: Path, sheet_name: str, choices: Choices, output_bas
             export_html_mermaid(operations, analysis_data, choices, df.columns.tolist(), output_base)
         elif choices.output_format == "html_interactive":
             export_interactive_html(operations, analysis_data, choices, output_base)
-        elif choices.output_format == "html_svg":
-            export_svg_html(operations, analysis_data, choices, df.columns.tolist(), output_base)
-        else:  # html_interactive
+        # УБРАЛ УСЛОВИЕ ДЛЯ html_svg
+        else:  # для CLD форматов обработка уже выше
             export_interactive_html(operations, analysis_data, choices, output_base)
 
         # Вывод общей статистики
@@ -136,7 +134,6 @@ def get_file_extension(output_format: str) -> str:
         "md": "md",
         "html_mermaid": "html", 
         "html_interactive": "html",
-        "html_svg": "html",
         "cld_mermaid": "md",
         "cld_interactive": "html"
     }
