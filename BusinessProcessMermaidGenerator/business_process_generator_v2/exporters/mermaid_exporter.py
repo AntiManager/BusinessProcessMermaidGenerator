@@ -51,7 +51,8 @@ def build_mermaid_md(
 
         # Сначала добавляем подгруппы с определенными значениями
         for subgroup in sorted([sg for sg in subgroup_ops.keys() if sg is not None]):
-            sg_id = safe_id(subgroup)
+            # ИСПРАВЛЕНИЕ: Добавляем префикс к идентификатору группы чтобы избежать циклов
+            sg_id = "group_" + safe_id(subgroup)
             lines.append(f'    subgraph {sg_id}["{escape_text(subgroup)}"]')
             for name in sorted(subgroup_ops[subgroup]):
                 lines.append(_node_line_md(name, operations[name], input_to_operations, critical_ops))
@@ -154,7 +155,8 @@ def build_mermaid_html(
     if choices.subgroup_column and not choices.no_grouping:
         # Сначала добавляем подгруппы с определенными значениями
         for subgroup in sorted([sg for sg in subgroup_ops.keys() if sg is not None]):
-            sg_id = safe_id(subgroup)
+            # ИСПРАВЛЕНИЕ: Добавляем префикс к идентификатору группы чтобы избежать циклов
+            sg_id = "group_" + safe_id(subgroup)
             lines.append(f'    subgraph {sg_id}["{escape_text(subgroup)}"]')
             for name in sorted(subgroup_ops[subgroup]):
                 lines.append(_node_line_html(name, operations[name], input_to_operations, critical_ops))
