@@ -1,14 +1,17 @@
 """
 Графический интерфейс для генератора диаграмм бизнес-процессов
+РЕФАКТОРИНГ: Устранение циклических импортов
 """
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import pandas as pd
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any
 from models import Choices
 from config import CRITICAL_MIN_INPUTS, CRITICAL_MIN_REUSE
+# ИСПРАВЛЕННЫЙ ИМПОРТ - без цикла!
+from core_api import run_with_gui
 
 class BusinessProcessGUI:
     def __init__(self, root):
@@ -21,29 +24,40 @@ class BusinessProcessGUI:
         self.config_file = Path("bp_config.json")
         self.config = self.load_config()
         
-        # Переменные интерфейса
+        # Инициализация переменных интерфейса
+        self._init_variables()
+        self.create_widgets()
+        
+        # Загружаем листы если файл уже выбран
+        if self.excel_path.get() and Path(self.excel_path.get()).exists():
+            self.load_sheet_names()
+        
+    def _init_variables(self):
+        """Инициализация переменных интерфейса"""
+        # Основные переменные
         self.excel_path = tk.StringVar(value=self.config.get('excel_path', ''))
         self.sheet_name = tk.StringVar(value=self.config.get('sheet_name', ''))
-        self.sheet_names = []  # Список доступных листов
+        self.sheet_names = []
         self.output_base = tk.StringVar(value=self.config.get('output_base', 'business_process_diagram'))
-        self.output_format = tk.StringVar(value=self.config.get('output_format', 'html_svg'))
+        self.output_format = tk.StringVar(value=self.config.get('output_format', 'html_mermaid'))
         self.subgroup_column = tk.StringVar(value=self.config.get('subgroup_column', ''))
         self.show_detailed = tk.BooleanVar(value=self.config.get('show_detailed', False))
         self.critical_min_inputs = tk.IntVar(value=self.config.get('critical_min_inputs', CRITICAL_MIN_INPUTS))
         self.critical_min_reuse = tk.IntVar(value=self.config.get('critical_min_reuse', CRITICAL_MIN_REUSE))
         self.no_grouping = tk.BooleanVar(value=self.config.get('no_grouping', True))
         
-        # Новые переменные для CLD
+        # CLD переменные
         self.cld_source_type = tk.StringVar(value=self.config.get('cld_source_type', 'auto'))
         self.cld_sheet_name = tk.StringVar(value=self.config.get('cld_sheet_name', ''))
         self.show_cld_operations = tk.BooleanVar(value=self.config.get('show_cld_operations', True))
         self.cld_influence_signs = tk.BooleanVar(value=self.config.get('cld_influence_signs', True))
         
-        self.create_widgets()
-        
-        # Загружаем листы если файл уже выбран
-        if self.excel_path.get() and Path(self.excel_path.get()).exists():
-            self.load_sheet_names()
+        # UI элементы
+        self.sheet_combobox = None
+        self.cld_sheet_combobox = None
+        self.cld_frame = None
+        self.group_combo = None
+        self.status_var = tk.StringVar(value="Готов к работе. Выберите файл Excel.")
         
     def load_config(self) -> Dict[str, Any]:
         """Загрузка конфигурации из файла"""
@@ -377,8 +391,8 @@ class BusinessProcessGUI:
         messagebox.showinfo("Сброс настроек", "Настройки сброшены к значениям по умолчанию")
     
     def generate_diagram(self):
-        """Генерация диаграммы"""
-        # Валидация входных данных
+        """Генерация диаграммы - обновленный метод для использования нового API"""
+        # Валидация выполняется в core_api.py, здесь только базовая проверка
         if not self.excel_path.get():
             messagebox.showerror("Ошибка", "Выберите файл Excel")
             return
@@ -387,42 +401,6 @@ class BusinessProcessGUI:
         if not excel_path.exists():
             messagebox.showerror("Ошибка", f"Файл не существует: {excel_path}")
             return
-        
-        if not self.sheet_name.get():
-            messagebox.showerror("Ошибка", "Выберите лист из файла Excel")
-            return
-        
-        if not self.output_base.get().strip():
-            messagebox.showerror("Ошибка", "Введите имя для выходного файла")
-            return
-        
-        # 🔥 УЛУЧШЕННАЯ ВАЛИДАЦИЯ ДЛЯ CLD ФОРМАТОВ
-        current_format = self.output_format.get()
-        if current_format in ["cld_mermaid", "cld_interactive"]:
-            if self.cld_source_type.get() == "manual" and not self.cld_sheet_name.get():
-                messagebox.showerror("Ошибка", 
-                    "Для ручного источника CLD данных выберите лист с CLD данными.\n\n"
-                    "Если вы хотите использовать автоматическое построение CLD из бизнес-процессов, "
-                    "измените 'Источник данных' на 'Авто из бизнес-процессов'.")
-                return
-            
-            # Предупреждение если выбран автоматический источник но нет основного листа с бизнес-процессами
-            if self.cld_source_type.get() == "auto":
-                try:
-                    # Проверим что основной лист содержит данные бизнес-процессов
-                    df_test = pd.read_excel(excel_path, sheet_name=self.sheet_name.get(), engine="openpyxl", nrows=1)
-                    if not {'Операция', 'Входы', 'Выход'}.issubset(set(df_test.columns)):
-                        result = messagebox.askquestion(
-                            "Предупреждение", 
-                            f"Выбранный основной лист '{self.sheet_name.get()}' не содержит стандартных колонок бизнес-процессов (Операция, Входы, Выход).\n\n"
-                            f"Для автоматического построения CLD нужны данные бизнес-процессов.\n\n"
-                            f"Хотите продолжить или изменить настройки?",
-                            icon='warning'
-                        )
-                        if result != 'yes':
-                            return
-                except Exception as e:
-                    print(f"Предварительная проверка листа: {e}")
         
         try:
             self.status_var.set("Генерация диаграммы...")
@@ -436,7 +414,6 @@ class BusinessProcessGUI:
                 critical_min_reuse=self.critical_min_reuse.get(),
                 no_grouping=self.no_grouping.get(),
                 output_format=self.output_format.get(),
-                # CLD настройки
                 cld_source_type=self.cld_source_type.get(),
                 cld_sheet_name=self.cld_sheet_name.get(),
                 show_cld_operations=self.show_cld_operations.get(),
@@ -446,8 +423,7 @@ class BusinessProcessGUI:
             # Сохранение конфигурации
             self.save_config()
             
-            # Импорт здесь чтобы избежать циклических импортов
-            from main import run_with_gui
+            # Запуск генерации через новый core_api.py
             success = run_with_gui(excel_path, self.sheet_name.get(), choices, self.output_base.get())
             
             if success:
@@ -458,7 +434,7 @@ class BusinessProcessGUI:
                     f"Диаграмма автоматически откроется в браузере.")
             else:
                 self.status_var.set("Ошибка при создании диаграммы")
-                messagebox.showerror("Ошибка", "Не удалось создать диаграмму. Проверьте данные в файле Excel.")
+                # Сообщение об ошибке будет показано через logging в core_api.py
                 
         except Exception as e:
             self.status_var.set(f"Ошибка: {str(e)}")

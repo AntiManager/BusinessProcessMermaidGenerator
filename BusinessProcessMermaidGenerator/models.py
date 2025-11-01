@@ -1,23 +1,43 @@
 """
-Data classes и модели данных
+Data classes и модели данных с улучшенной валидацией
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Set
+import re
 
 @dataclass
 class Operation:
     name: str
-    outputs: List[str]
-    inputs: List[str]
-    subgroup: Optional[str]
-    node_text: str
+    outputs: List[str] = field(default_factory=list)
+    inputs: List[str] = field(default_factory=list)
+    subgroup: Optional[str] = None
+    node_text: str = ""
     group: str = ""
     owner: str = ""
     detailed: str = ""
+    
+    def __post_init__(self):
+        """Валидация данных после инициализации"""
+        self._validate()
+    
+    def _validate(self):
+        """Валидация данных операции"""
+        if not self.name or not self.name.strip():
+            raise ValueError("Имя операции не может быть пустым")
+        
+        # Очистка данных
+        self.name = self.name.strip()
+        self.outputs = [out.strip() for out in self.outputs if out and str(out).strip()]
+        self.inputs = [inp.strip() for inp in self.inputs if inp and str(inp).strip()]
+        
+        if self.subgroup:
+            self.subgroup = str(self.subgroup).strip()
+            if self.subgroup.lower() == 'nan':
+                self.subgroup = None
 
 @dataclass
 class CausalLink:
-    """Причинно-следственная связь для CLD"""
+    """Причинно-следственная связь для CLD с валидацией"""
     source: str
     target: str 
     influence: str  # "+" или "-"
@@ -25,16 +45,28 @@ class CausalLink:
     operation: Optional[str] = None
     include_in_cld: bool = True
     description: str = ""
+    
+    def __post_init__(self):
+        """Валидация связи"""
+        self._validate()
+    
+    def _validate(self):
+        """Валидация данных связи"""
+        if not self.source or not self.source.strip():
+            raise ValueError("Источник связи не может быть пустым")
+        
+        if not self.target or not self.target.strip():
+            raise ValueError("Цель связи не может быть пустой")
+        
+        if self.influence not in ["+", "-"]:
+            raise ValueError(f"Некорректный знак влияния: {self.influence}. Допустимы '+' или '-'")
+        
+        # Очистка данных
+        self.source = self.source.strip()
+        self.target = self.target.strip()
+        self.influence = self.influence.strip()
 
-@dataclass
-class CausalAnalysis:
-    """Анализ причинно-следственных связей"""
-    links: List[CausalLink]
-    variables: Set[str]
-    feedback_loops: List[List[str]]
-    source_type: str  # "manual" или "auto"
-    statistics: Dict[str, Any]
-
+# Остальные data classes остаются без изменений, но добавляем валидацию где необходимо
 @dataclass
 class Choices:
     subgroup_column: Optional[str] = None
@@ -43,11 +75,21 @@ class Choices:
     critical_min_reuse: int = 3
     no_grouping: bool = False
     output_format: str = "md"
-    cld_source_type: str = "auto"  # "auto" из бизнес-процессов или "manual" из отдельной таблицы
+    cld_source_type: str = "auto"
     cld_sheet_name: str = ""
     show_cld_operations: bool = True
     cld_influence_signs: bool = True
+    
+    def __post_init__(self):
+        """Валидация настроек"""
+        valid_formats = ["md", "html_mermaid", "html_interactive", "cld_mermaid", "cld_interactive"]
+        if self.output_format not in valid_formats:
+            raise ValueError(f"Некорректный формат вывода: {self.output_format}")
+        
+        if self.cld_source_type not in ["auto", "manual"]:
+            raise ValueError(f"Некорректный тип источника CLD: {self.cld_source_type}")
 
+# Остальные data classes остаются без изменений...
 @dataclass
 class MergePoint:
     operation: str
@@ -87,32 +129,11 @@ class AnalysisData:
     input_to_operations: Dict[str, List[str]]
     analysis: ProcessAnalysis
 
-    def get_complexity_score(self, operations: Dict[str, Operation]) -> int:
-        """Рассчитать оценку сложности процесса от 1 до 10"""
-        analysis = self.analysis
-        
-        weights = {
-            'operations': 0.3,
-            'merge_points': 0.2,
-            'split_points': 0.2,
-            'critical_points': 0.3
-        }
-        
-        max_operations = 50
-        max_merge = 10
-        max_split = 10
-        max_critical = 5
-        
-        op_score = min(len(operations) / max_operations, 1.0)
-        merge_score = min(len(analysis.merge_points) / max_merge, 1.0)
-        split_score = min(len(analysis.split_points) / max_split, 1.0)
-        critical_score = min(len(analysis.critical_points) / max_critical, 1.0)
-        
-        total_score = (
-            op_score * weights['operations'] +
-            merge_score * weights['merge_points'] +
-            split_score * weights['split_points'] +
-            critical_score * weights['critical_points']
-        )
-        
-        return min(10, int(total_score * 10) + 1)
+@dataclass
+class CausalAnalysis:
+    """Анализ причинно-следственных связей"""
+    links: List[CausalLink]
+    variables: Set[str]
+    feedback_loops: List[List[str]]
+    source_type: str  # "manual" или "auto"
+    statistics: Dict[str, Any]

@@ -1,0 +1,160 @@
+"""
+Ядро приложения - бизнес-логика и координация процессов
+"""
+import logging
+from pathlib import Path
+from typing import Dict, Optional, Tuple
+from models import Operation, Choices, AnalysisData, CausalAnalysis
+from data_loader import load_and_validate_data, collect_operations, load_cld_data
+from analysis import analyse_network
+from cld_analyzer import analyze_causal_links_from_operations, analyze_causal_links_from_dataframe
+from exporters import (
+    export_mermaid, 
+    export_html_mermaid, 
+    export_interactive_html,
+    export_cld_mermaid, 
+    export_cld_interactive
+)
+from config import REQ_COLUMNS
+
+logger = logging.getLogger(__name__)
+
+class BusinessProcessEngine:
+    """Движок бизнес-процессов - координирует всю логику приложения"""
+    
+    def __init__(self):
+        self.operations: Optional[Dict[str, Operation]] = None
+        self.analysis_data: Optional[AnalysisData] = None
+        self.causal_analysis: Optional[CausalAnalysis] = None
+    
+    def load_business_processes(self, excel_path: Path, sheet_name: str, choices: Choices) -> bool:
+        """Загрузка и валидация данных бизнес-процессов"""
+        try:
+            df = load_and_validate_data(excel_path, sheet_name, REQ_COLUMNS)
+            if df is None:
+                return False
+            
+            self.operations = collect_operations(df, choices)
+            if not self.operations:
+                logger.error("Не найдено операций для анализа")
+                return False
+                
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка загрузки бизнес-процессов: {e}")
+            return False
+    
+    def analyze_business_processes(self, choices: Choices) -> bool:
+        """Анализ бизнес-процессов"""
+        try:
+            if not self.operations:
+                logger.error("Операции не загружены")
+                return False
+                
+            self.analysis_data = analyse_network(self.operations, choices)
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка анализа бизнес-процессов: {e}")
+            return False
+    
+    def load_causal_analysis(self, excel_path: Path, choices: Choices) -> bool:
+        """Загрузка и анализ причинно-следственных связей"""
+        try:
+            if choices.cld_source_type == "manual" and choices.cld_sheet_name:
+                # Загрузка из отдельной таблицы CLD
+                cld_df = load_cld_data(excel_path, choices.cld_sheet_name)
+                if cld_df is None:
+                    return False
+                self.causal_analysis = analyze_causal_links_from_dataframe(cld_df)
+            else:
+                # Автоматическое построение из бизнес-процессов
+                if not self.operations:
+                    logger.error("Бизнес-процессы не загружены для автоматического CLD")
+                    return False
+                self.causal_analysis = analyze_causal_links_from_operations(self.operations)
+            
+            return self.causal_analysis is not None
+            
+        except Exception as e:
+            logger.error(f"Ошибка загрузки CLD анализа: {e}")
+            return False
+    
+    def export_diagram(self, choices: Choices, output_base: str, available_columns: list = None) -> Optional[Path]:
+        """Экспорт диаграммы в выбранный формат"""
+        try:
+            output_file = None
+            
+            if choices.output_format in ["cld_mermaid", "cld_interactive"]:
+                if not self.causal_analysis:
+                    logger.error("CLD анализ не выполнен")
+                    return None
+                
+                if choices.output_format == "cld_mermaid":
+                    output_file = export_cld_mermaid(self.causal_analysis, choices, output_base)
+                else:
+                    output_file = export_cld_interactive(self.causal_analysis, choices, output_base)
+                    
+            else:
+                if not self.analysis_data or not self.operations:
+                    logger.error("Анализ бизнес-процессов не выполнен")
+                    return None
+                
+                if choices.output_format == "md":
+                    export_mermaid(self.operations, self.analysis_data, choices, 
+                                 available_columns or [], output_base)
+                    output_file = Path(f"{output_base}.md")
+                elif choices.output_format == "html_mermaid":
+                    export_html_mermaid(self.operations, self.analysis_data, choices, 
+                                      available_columns or [], output_base)
+                    output_file = Path(f"{output_base}.html")
+                elif choices.output_format == "html_interactive":
+                    export_interactive_html(self.operations, self.analysis_data, choices, output_base)
+                    output_file = Path(f"{output_base}.html")
+                else:
+                    logger.error(f"Неизвестный формат: {choices.output_format}")
+                    return None
+            
+            return output_file
+            
+        except Exception as e:
+            logger.error(f"Ошибка экспорта диаграммы: {e}")
+            return None
+    
+    def get_statistics(self) -> Dict:
+        """Получение статистики для отображения в UI"""
+        stats = {
+            "operations_count": 0,
+            "external_inputs": 0,
+            "final_outputs": 0,
+            "critical_points": 0,
+            "merge_points": 0,
+            "split_points": 0
+        }
+        
+        if self.analysis_data:
+            analysis = self.analysis_data.analysis
+            stats.update({
+                "operations_count": analysis.operations_count,
+                "external_inputs": len(analysis.external_inputs),
+                "final_outputs": len(analysis.final_outputs),
+                "critical_points": len(analysis.critical_points),
+                "merge_points": len(analysis.merge_points),
+                "split_points": len(analysis.split_points)
+            })
+        
+        if self.causal_analysis:
+            stats.update({
+                "cld_variables": len(self.causal_analysis.variables),
+                "cld_links": len([l for l in self.causal_analysis.links if l.include_in_cld]),
+                "cld_loops": len(self.causal_analysis.feedback_loops)
+            })
+        
+        return stats
+    
+    def reset(self):
+        """Сброс состояния движка"""
+        self.operations = None
+        self.analysis_data = None
+        self.causal_analysis = None
