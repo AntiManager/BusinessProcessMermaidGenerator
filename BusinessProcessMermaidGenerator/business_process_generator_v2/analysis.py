@@ -113,3 +113,39 @@ def analyse_network(
         input_to_operations=input_to_operations,
         analysis=analysis
     )
+
+def get_process_complexity_score(operations: Dict[str, Operation], analysis_data: AnalysisData) -> int:
+    """
+    Рассчитать оценку сложности процесса от 1 до 10
+    """
+    analysis = analysis_data.analysis
+    
+    # Весовые коэффициенты
+    weights = {
+        'operations': 0.3,
+        'merge_points': 0.2,
+        'split_points': 0.2,
+        'critical_points': 0.3
+    }
+    
+    # Нормализация значений (максимальные ожидаемые значения)
+    max_operations = 50
+    max_merge = 10
+    max_split = 10
+    max_critical = 5
+    
+    # Расчет нормализованных показателей
+    op_score = min(len(operations) / max_operations, 1.0)
+    merge_score = min(len(analysis.merge_points) / max_merge, 1.0)
+    split_score = min(len(analysis.split_points) / max_split, 1.0)
+    critical_score = min(len(analysis.critical_points) / max_critical, 1.0)
+    
+    # Общий счет
+    total_score = (
+        op_score * weights['operations'] +
+        merge_score * weights['merge_points'] +
+        split_score * weights['split_points'] +
+        critical_score * weights['critical_points']
+    )
+    
+    return min(10, int(total_score * 10) + 1)

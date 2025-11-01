@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Диаграмма бизнес-процесса</title>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            securityLevel: 'loose'
+        });
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        .diagram-container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin: 20px 0;
+            background: white;
+            border-radius: 5px;
+            overflow: auto;
+            width: 100%;
+            min-height: 600px;
+            cursor: move;
+        }
+        .diagram-container:active {
+            cursor: grabbing;
+        }
+        .controls {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 5px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        button {
+            padding: 8px 15px;
+            background: #007cba;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #005a87;
+        }
+        .zoom-info {
+            padding: 8px 15px;
+            background: #e7f3ff;
+            border-radius: 3px;
+            font-size: 14px;
+            min-width: 120px;
+            text-align: center;
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        .analysis-section {
+            background: #f9f9f9;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-right: 20px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 5px;
+            border: 1px solid #333;
+        }
+        table {
+            width: 100%;
+            margin: 15px 0;
+        }
+        .mermaid {
+            transform-origin: 0 0;
+            transition: transform 0.2s ease;
+            min-width: min-content;
+        }
+        .fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: white;
+            z-index: 1000;
+            padding: 20px;
+        }
+        .fullscreen-controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1001;
+            display: flex;
+            gap: 10px;
+        }
+        .zoom-slider {
+            width: 150px;
+            margin: 0 10px;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin: 0 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Диаграмма бизнес-процесса</h1>
+    
+    <div class="controls">
+        <strong>Управление диаграммой:</strong>
+        <div class="control-group">
+            <button onclick="zoomOut()">−</button>
+            <input type="range" min="10" max="300" value="100" class="zoom-slider" id="zoomSlider" oninput="updateZoomFromSlider(this.value)">
+            <button onclick="zoomIn()">+</button>
+            <div class="zoom-info" id="zoomInfo">100%</div>
+        </div>
+        <button onclick="resetZoom()">Сброс (100%)</button>
+        <button onclick="fitToScreen()">Вместить в экран</button>
+        <button onclick="toggleFullscreen()">Полный экран ⛶</button>
+        <div style="margin-left: auto; font-size: 12px; color: #666;">
+            🔍 Ctrl+колесо для зума • 🖱️ Перетаскивание для навигации
+        </div>
+    </div>
+    
+    <div class="diagram-container" id="diagramContainer">
+        <div class="mermaid" id="mermaidDiagram">
+graph LR
+    classDef external fill:yellow,stroke:#333,stroke-width:2px;;
+    classDef final fill:red,stroke:#333,stroke-width:2px,color:white;;
+    classDef merge fill:orange,stroke:#333,stroke-width:2px;;
+    classDef split fill:purple,stroke:#333,stroke-width:2px,color:white;;
+    classDef critical fill:#ff4444,stroke:#000,stroke-width:3px,color:white,stroke-dasharray:5 5;;
+    Данные_о_спросе(["Данные о спросе"]):::external
+    Жалоба_клиента(["Жалоба клиента"]):::external
+    Запрос_клиента(["Запрос клиента"]):::external
+    Запрос_на_возврат(["Запрос на возврат"]):::external
+    Исторические_продажи(["Исторические продажи"]):::external
+    Сезонность(["Сезонность"]):::external
+    Товар_продан(["Товар продан"]):::external
+    Возврат_обработан(["Возврат обработан"]):::final
+    Жалоба_решена(["Жалоба решена"]):::final
+    Заказ_закрыт(["Заказ закрыт"]):::final
+    План_закупок(["План закупок"]):::final
+    Анализ_качества["Анализ качества"]
+    Закрытие_заказа["Закрытие заказа"]
+    Закупка_материалов["Закупка материалов"]:::merge
+    Контроль_качества["Контроль качества"]
+    Корректирующие_действия["Корректирующие действия"]
+    Обработка_возвратов["Обработка возвратов"]
+    Ожидание_оплаты["Ожидание оплаты"]
+    Отправка_счета["Отправка счета"]
+    Отслеживание_доставки["Отслеживание доставки"]
+    Оформление_доставки["Оформление доставки"]
+    Планирование_закупок["Планирование закупок"]:::merge
+    Подготовка_к_отгрузке["Подготовка к отгрузке"]:::merge
+    Подтверждение_получения["Подтверждение получения"]
+    Поступление_на_склад["Поступление на склад"]
+    Прием_жалоб["Прием жалоб"]
+    Прием_заказа["Прием заказа"]
+    Проверка_наличия["Проверка наличия"]
+    Прогнозирование_спроса["Прогнозирование спроса"]:::merge
+    Производство["Производство"]
+    Расследование_жалобы["Расследование жалобы"]:::split
+    Резервирование_товара["Резервирование товара"]:::split
+    Решение_по_жалобе["Решение по жалобе"]
+    Учет_качества["Учет качества"]
+    Учет_остатков["Учет остатков"]:::merge
+    Формирование_счета["Формирование счета"]
+    Прием_заказа-- "Подтвержденный заказ" -->Проверка_наличия
+    Запрос_клиента-- "Запрос клиента" -->Прием_заказа
+    Проверка_наличия-- "Информация о наличии" -->Резервирование_товара
+    Резервирование_товара-- "Зарезервированный товар" -->Формирование_счета
+    Резервирование_товара-- "Зарезервированный товар" -->Подготовка_к_отгрузке
+    Формирование_счета-- "Счет на оплату" -->Отправка_счета
+    Отправка_счета-- "Счет отправлен" -->Ожидание_оплаты
+    Ожидание_оплаты-- "Оплата получена" -->Подготовка_к_отгрузке
+    Подготовка_к_отгрузке-- "Товар упакован" -->Оформление_доставки
+    Оформление_доставки-- "Товар передан в доставку" -->Отслеживание_доставки
+    Отслеживание_доставки-- "Товар доставлен" -->Подтверждение_получения
+    Подтверждение_получения-- "Получение подтверждено" -->Закрытие_заказа
+    Закрытие_заказа-- "Заказ закрыт" -->Заказ_закрыт
+    Обработка_возвратов-- "Возврат обработан" -->Возврат_обработан
+    Запрос_на_возврат-- "Запрос на возврат" -->Обработка_возвратов
+    Прием_жалоб-- "Жалоба зарегистрирована" -->Расследование_жалобы
+    Жалоба_клиента-- "Жалоба клиента" -->Прием_жалоб
+    Расследование_жалобы-- "Причина жалобы" -->Решение_по_жалобе
+    Расследование_жалобы-- "Причина жалобы" -->Учет_качества
+    Решение_по_жалобе-- "Жалоба решена" -->Жалоба_решена
+    Учет_качества-- "Данные о качестве" -->Анализ_качества
+    Анализ_качества-- "Отчет о качестве" -->Корректирующие_действия
+    Корректирующие_действия-- "План улучшений" -->Закупка_материалов
+    Закупка_материалов-- "Материалы закуплены" -->Производство
+    Данные_о_спросе-- "Данные о спросе" -->Закупка_материалов
+    Производство-- "Готовая продукция" -->Контроль_качества
+    Контроль_качества-- "Товар проверен" -->Поступление_на_склад
+    Поступление_на_склад-- "Товар на складе" -->Учет_остатков
+    Учет_остатков-- "Остатки на складе" -->Планирование_закупок
+    Товар_продан-- "Товар продан" -->Учет_остатков
+    Прогнозирование_спроса-- "Прогноз спроса" -->Планирование_закупок
+    Сезонность-- "Сезонность" -->Прогнозирование_спроса
+    Исторические_продажи-- "Исторические продажи" -->Прогнозирование_спроса
+    Планирование_закупок-- "План закупок" -->План_закупок
+        </div>
+    </div>
+    
+    <div class="legend">
+        <div class="legend-item"><div class="legend-color" style="background: yellow;"></div> Внешние входы</div>
+        <div class="legend-item"><div class="legend-color" style="background: red;"></div> Конечные выходы</div>
+        <div class="legend-item"><div class="legend-color" style="background: orange;"></div> Операции слияния</div>
+        <div class="legend-item"><div class="legend-color" style="background: purple;"></div> Операции разветвления</div>
+        <div class="legend-item"><div class="legend-color" style="background: #ff4444;"></div> Супер-критические операции</div>
+    </div>
+
+    <div class="analysis-section">
+        <h2>Анализ процесса</h2>
+        <h3>Супер-критические операции</h3>
+<p>Таких операций нет</p>
+        <h3>Статистика процесса</h3>
+        <p><strong>Всего операций:</strong> 25</p>
+        <p><strong>Внешние входы:</strong> 7</p>
+        <p><strong>Конечные выходы:</strong> 4</p>
+        <p><strong>Операций слияния:</strong> 5</p>
+        <p><strong>Операций разветвления:</strong> 2</p>
+        <p><strong>Супер-критических операций:</strong> 0</p>
+    </div>
+
+    <h2>Реестр операций</h2>
+<table border="1" style="border-collapse: collapse; width: 100%; margin: 10px 0;">
+<thead><tr>
+<th style="padding: 8px; background: #f0f0f0;">Операция</th>
+<th style="padding: 8px; background: #f0f0f0;">Группа</th>
+<th style="padding: 8px; background: #f0f0f0;">Владелец</th>
+<th style="padding: 8px; background: #f0f0f0;">Входы</th>
+<th style="padding: 8px; background: #f0f0f0;">Выход</th>
+<th style="padding: 8px; background: #f0f0f0;">Тип узла</th>
+<th style="padding: 8px; background: #f0f0f0;">Подробное описание</th>
+</tr></thead>
+<tbody>
+<tr>
+<td style="padding: 8px;">Прием заказа</td>
+<td style="padding: 8px;">Продажи</td>
+<td style="padding: 8px;">Менеджер</td>
+<td style="padding: 8px;">Запрос клиента</td>
+<td style="padding: 8px;">Подтвержденный заказ</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Проверка доступности товара и подтверждение заказа</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Проверка наличия</td>
+<td style="padding: 8px;">Склад</td>
+<td style="padding: 8px;">Кладовщик</td>
+<td style="padding: 8px;">Подтвержденный заказ</td>
+<td style="padding: 8px;">Информация о наличии</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Проверка наличия товара на складе</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Резервирование товара</td>
+<td style="padding: 8px;">Склад</td>
+<td style="padding: 8px;">Кладовщик</td>
+<td style="padding: 8px;">Информация о наличии</td>
+<td style="padding: 8px;">Зарезервированный товар</td>
+<td style="padding: 8px;">Разветвление</td>
+<td style="padding: 8px;">Резервирование товара для заказа</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Формирование счета</td>
+<td style="padding: 8px;">Финансы</td>
+<td style="padding: 8px;">Бухгалтер</td>
+<td style="padding: 8px;">Зарезервированный товар</td>
+<td style="padding: 8px;">Счет на оплату</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Создание счета с учетом доставки и налогов</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Отправка счета</td>
+<td style="padding: 8px;">Продажи</td>
+<td style="padding: 8px;">Менеджер</td>
+<td style="padding: 8px;">Счет на оплату</td>
+<td style="padding: 8px;">Счет отправлен</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Отправка счета клиенту по email</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Ожидание оплаты</td>
+<td style="padding: 8px;">Финансы</td>
+<td style="padding: 8px;">Бухгалтер</td>
+<td style="padding: 8px;">Счет отправлен</td>
+<td style="padding: 8px;">Оплата получена</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Ожидание поступления оплаты от клиента</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Подготовка к отгрузке</td>
+<td style="padding: 8px;">Склад</td>
+<td style="padding: 8px;">Кладовщик</td>
+<td style="padding: 8px;">Оплата получена, Зарезервированный товар</td>
+<td style="padding: 8px;">Товар упакован</td>
+<td style="padding: 8px;">Слияние</td>
+<td style="padding: 8px;">Упаковка товара и подготовка к отправке</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Оформление доставки</td>
+<td style="padding: 8px;">Логистика</td>
+<td style="padding: 8px;">Логист</td>
+<td style="padding: 8px;">Товар упакован</td>
+<td style="padding: 8px;">Товар передан в доставку</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Оформление доставки через курьерскую службу</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Отслеживание доставки</td>
+<td style="padding: 8px;">Логистика</td>
+<td style="padding: 8px;">Логист</td>
+<td style="padding: 8px;">Товар передан в доставку</td>
+<td style="padding: 8px;">Товар доставлен</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Мониторинг статуса доставки</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Подтверждение получения</td>
+<td style="padding: 8px;">Продажи</td>
+<td style="padding: 8px;">Менеджер</td>
+<td style="padding: 8px;">Товар доставлен</td>
+<td style="padding: 8px;">Получение подтверждено</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Подтверждение получения от клиента</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Закрытие заказа</td>
+<td style="padding: 8px;">Продажи</td>
+<td style="padding: 8px;">Менеджер</td>
+<td style="padding: 8px;">Получение подтверждено</td>
+<td style="padding: 8px;">Заказ закрыт</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Окончательное закрытие заказа в системе</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Обработка возвратов</td>
+<td style="padding: 8px;">Сервис</td>
+<td style="padding: 8px;">Менеджер</td>
+<td style="padding: 8px;">Запрос на возврат</td>
+<td style="padding: 8px;">Возврат обработан</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Обработка запросов на возврат товара</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Прием жалоб</td>
+<td style="padding: 8px;">Сервис</td>
+<td style="padding: 8px;">Менеджер</td>
+<td style="padding: 8px;">Жалоба клиента</td>
+<td style="padding: 8px;">Жалоба зарегистрирована</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Регистрация и классификация жалоб</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Расследование жалобы</td>
+<td style="padding: 8px;">Сервис</td>
+<td style="padding: 8px;">Менеджер</td>
+<td style="padding: 8px;">Жалоба зарегистрирована</td>
+<td style="padding: 8px;">Причина жалобы</td>
+<td style="padding: 8px;">Разветвление</td>
+<td style="padding: 8px;">Анализ причин возникновения жалобы</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Решение по жалобе</td>
+<td style="padding: 8px;">Сервис</td>
+<td style="padding: 8px;">Менеджер</td>
+<td style="padding: 8px;">Причина жалобы</td>
+<td style="padding: 8px;">Жалоба решена</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Принятие решения по устранению жалобы</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Учет качества</td>
+<td style="padding: 8px;">Качество</td>
+<td style="padding: 8px;">Менеджер качества</td>
+<td style="padding: 8px;">Причина жалобы</td>
+<td style="padding: 8px;">Данные о качестве</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Сбор статистики по качеству товаров</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Анализ качества</td>
+<td style="padding: 8px;">Качество</td>
+<td style="padding: 8px;">Менеджер качества</td>
+<td style="padding: 8px;">Данные о качестве</td>
+<td style="padding: 8px;">Отчет о качестве</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Анализ тенденций качества продукции</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Корректирующие действия</td>
+<td style="padding: 8px;">Производство</td>
+<td style="padding: 8px;">Директор</td>
+<td style="padding: 8px;">Отчет о качестве</td>
+<td style="padding: 8px;">План улучшений</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Разработка плана улучшения качества</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Закупка материалов</td>
+<td style="padding: 8px;">Закупки</td>
+<td style="padding: 8px;">Закупщик</td>
+<td style="padding: 8px;">План улучшений, Данные о спросе</td>
+<td style="padding: 8px;">Материалы закуплены</td>
+<td style="padding: 8px;">Слияние</td>
+<td style="padding: 8px;">Закупка материалов для производства</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Производство</td>
+<td style="padding: 8px;">Производство</td>
+<td style="padding: 8px;">Производственник</td>
+<td style="padding: 8px;">Материалы закуплены</td>
+<td style="padding: 8px;">Готовая продукция</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Производство товаров согласно плану</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Контроль качества</td>
+<td style="padding: 8px;">Качество</td>
+<td style="padding: 8px;">Контролер</td>
+<td style="padding: 8px;">Готовая продукция</td>
+<td style="padding: 8px;">Товар проверен</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Проверка качества готовой продукции</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Поступление на склад</td>
+<td style="padding: 8px;">Склад</td>
+<td style="padding: 8px;">Кладовщик</td>
+<td style="padding: 8px;">Товар проверен</td>
+<td style="padding: 8px;">Товар на складе</td>
+<td style="padding: 8px;">Обычный</td>
+<td style="padding: 8px;">Размещение товара на складе</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Учет остатков</td>
+<td style="padding: 8px;">Склад</td>
+<td style="padding: 8px;">Кладовщик</td>
+<td style="padding: 8px;">Товар продан, Товар на складе</td>
+<td style="padding: 8px;">Остатки на складе</td>
+<td style="padding: 8px;">Слияние</td>
+<td style="padding: 8px;">Обновление данных об остатках</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Прогнозирование спроса</td>
+<td style="padding: 8px;">Аналитика</td>
+<td style="padding: 8px;">Аналитик</td>
+<td style="padding: 8px;">Сезонность, Исторические продажи</td>
+<td style="padding: 8px;">Прогноз спроса</td>
+<td style="padding: 8px;">Слияние</td>
+<td style="padding: 8px;">Прогнозирование будущего спроса</td>
+</tr>
+<tr>
+<td style="padding: 8px;">Планирование закупок</td>
+<td style="padding: 8px;">Закупки</td>
+<td style="padding: 8px;">Закупщик</td>
+<td style="padding: 8px;">Прогноз спроса, Остатки на складе</td>
+<td style="padding: 8px;">План закупок</td>
+<td style="padding: 8px;">Слияние</td>
+<td style="padding: 8px;">Планирование объемов закупок</td>
+</tr>
+</tbody></table>
+    <script>
+        let scale = 1.0;
+        let isFullscreen = false;
+        let isDragging = false;
+        let startX, startY, scrollLeft, scrollTop;
+        const mermaidDiagram = document.getElementById('mermaidDiagram');
+        const zoomInfo = document.getElementById('zoomInfo');
+        const zoomSlider = document.getElementById('zoomSlider');
+        const diagramContainer = document.getElementById('diagramContainer');
+        
+        function updateZoomInfo() {
+            const percentage = Math.round(scale * 100);
+            zoomInfo.textContent = `${percentage}%`;
+            zoomSlider.value = percentage;
+            mermaidDiagram.style.transform = `scale(${scale})`;
+        }
+        
+        function updateZoomFromSlider(value) {
+            scale = parseInt(value) / 100;
+            updateZoomInfo();
+        }
+        
+        function zoomIn() {
+            scale = Math.min(3.0, scale + 0.1);
+            updateZoomInfo();
+        }
+        
+        function zoomOut() {
+            scale = Math.max(0.1, scale - 0.1);
+            updateZoomInfo();
+        }
+        
+        function resetZoom() {
+            scale = 1.0;
+            updateZoomInfo();
+            // Сброс скролла к центру
+            setTimeout(() => {
+                diagramContainer.scrollLeft = (diagramContainer.scrollWidth - diagramContainer.clientWidth) / 2;
+                diagramContainer.scrollTop = (diagramContainer.scrollHeight - diagramContainer.clientHeight) / 2;
+            }, 100);
+        }
+        
+        function fitToScreen() {
+            const svg = mermaidDiagram.querySelector('svg');
+            if (svg) {
+                const containerWidth = diagramContainer.clientWidth - 40;
+                const containerHeight = diagramContainer.clientHeight - 40;
+                const svgWidth = svg.getBoundingClientRect().width;
+                const svgHeight = svg.getBoundingClientRect().height;
+                
+                const scaleX = containerWidth / svgWidth;
+                const scaleY = containerHeight / svgHeight;
+                scale = Math.min(scaleX, scaleY);
+                updateZoomInfo();
+                
+                // Центрируем диаграмму после подгонки
+                setTimeout(() => {
+                    diagramContainer.scrollLeft = (diagramContainer.scrollWidth - diagramContainer.clientWidth) / 2;
+                    diagramContainer.scrollTop = (diagramContainer.scrollHeight - diagramContainer.clientHeight) / 2;
+                }, 100);
+            }
+        }
+        
+        function toggleFullscreen() {
+            if (!isFullscreen) {
+                diagramContainer.classList.add('fullscreen');
+                isFullscreen = true;
+                // Добавляем кнопку выхода из полноэкранного режима
+                const exitButton = document.createElement('button');
+                exitButton.textContent = '✕ Выйти';
+                exitButton.onclick = toggleFullscreen;
+                exitButton.style.cssText = 'padding: 10px 15px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;';
+                exitButton.id = 'exitFullscreen';
+                
+                const fullscreenControls = document.createElement('div');
+                fullscreenControls.className = 'fullscreen-controls';
+                fullscreenControls.appendChild(exitButton);
+                document.body.appendChild(fullscreenControls);
+                
+                // Подгоняем под размер экрана
+                setTimeout(fitToScreen, 100);
+            } else {
+                diagramContainer.classList.remove('fullscreen');
+                isFullscreen = false;
+                const fullscreenControls = document.querySelector('.fullscreen-controls');
+                if (fullscreenControls) {
+                    fullscreenControls.remove();
+                }
+                resetZoom();
+            }
+        }
+        
+        // Функции для перетаскивания диаграммы
+        diagramContainer.addEventListener('mousedown', (e) => {
+            if (e.button === 0) { // Левая кнопка мыши
+                isDragging = true;
+                startX = e.pageX - diagramContainer.offsetLeft;
+                startY = e.pageY - diagramContainer.offsetTop;
+                scrollLeft = diagramContainer.scrollLeft;
+                scrollTop = diagramContainer.scrollTop;
+                diagramContainer.style.cursor = 'grabbing';
+            }
+        });
+        
+        diagramContainer.addEventListener('mouseleave', () => {
+            isDragging = false;
+            diagramContainer.style.cursor = 'move';
+        });
+        
+        diagramContainer.addEventListener('mouseup', () => {
+            isDragging = false;
+            diagramContainer.style.cursor = 'move';
+        });
+        
+        diagramContainer.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault();
+            const x = e.pageX - diagramContainer.offsetLeft;
+            const y = e.pageY - diagramContainer.offsetTop;
+            const walkX = (x - startX) * 2; // Множитель для скорости скролла
+            const walkY = (y - startY) * 2;
+            diagramContainer.scrollLeft = scrollLeft - walkX;
+            diagramContainer.scrollTop = scrollTop - walkY;
+        });
+        
+        // Обработка клавиатуры
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && isFullscreen) {
+                toggleFullscreen();
+            }
+            if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+                if (e.key === '=' || e.key === '+') {
+                    e.preventDefault();
+                    zoomIn();
+                } else if (e.key === '-') {
+                    e.preventDefault();
+                    zoomOut();
+                } else if (e.key === '0') {
+                    e.preventDefault();
+                    resetZoom();
+                } else if (e.key === '1') {
+                    e.preventDefault();
+                    fitToScreen();
+                }
+            }
+        });
+        
+        // Масштабирование колесом мыши с зажатым Ctrl
+        diagramContainer.addEventListener('wheel', (e) => {
+            if (e.ctrlKey) {
+                e.preventDefault();
+                const rect = diagramContainer.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                const zoomIntensity = 0.001;
+                const wheel = e.deltaY < 0 ? 1 : -1;
+                const newScale = Math.max(0.1, Math.min(3.0, scale + wheel * zoomIntensity * 50));
+                
+                // Сохраняем позицию мыши относительно диаграммы
+                const scaleChange = newScale / scale;
+                diagramContainer.scrollLeft = (diagramContainer.scrollLeft + mouseX) * scaleChange - mouseX;
+                diagramContainer.scrollTop = (diagramContainer.scrollTop + mouseY) * scaleChange - mouseY;
+                
+                scale = newScale;
+                updateZoomInfo();
+            }
+        }, { passive: false });
+        
+        // Инициализация после загрузки Mermaid
+        setTimeout(() => {
+            updateZoomInfo();
+            // Автоматически подгоняем под экран при загрузке
+            setTimeout(() => {
+                fitToScreen();
+                // Устанавливаем курсор для перетаскивания
+                diagramContainer.style.cursor = 'move';
+            }, 500);
+        }, 1000);
+        
+        // Обработка изменения размера окна
+        window.addEventListener('resize', () => {
+            if (isFullscreen) {
+                setTimeout(fitToScreen, 100);
+            }
+        });
+    </script>
+</body>
+</html>

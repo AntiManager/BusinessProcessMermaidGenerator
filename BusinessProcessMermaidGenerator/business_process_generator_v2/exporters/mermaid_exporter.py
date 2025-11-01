@@ -1,5 +1,5 @@
 """
-Экспорт в Mermaid формат (Markdown и HTML)
+Экспорт в Mermaid формат (Markdown и HTML) с улучшениями
 """
 from typing import Dict, Set, List, Tuple
 from pathlib import Path
@@ -120,7 +120,7 @@ def build_mermaid_html(
     choices: Choices,
 ) -> str:
     """
-    Генерирует Mermaid код для вставки в HTML с панорамированием
+    Генерирует Mermaid код для вставки в HTML с улучшениями
     """
     external_inputs = analysis_data.external_inputs
     final_outputs = analysis_data.final_outputs
