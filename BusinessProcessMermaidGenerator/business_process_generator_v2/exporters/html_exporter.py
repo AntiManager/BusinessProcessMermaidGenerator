@@ -1,5 +1,5 @@
 """
-Экспорт в HTML с улучшенным дизайном и полной аналитикой
+Экспорт в HTML с упрощенным дизайном и базовой навигацией
 """
 import json
 from pathlib import Path
@@ -9,17 +9,17 @@ from exporters.mermaid_exporter import build_mermaid_html
 from utils import safe_id, escape_text, clean_text
 from config import ENCODING
 
-def create_enhanced_html_table(headers: List[str], data: List[Dict[str, str]], table_id: str = "") -> str:
+def create_simple_html_table(headers: List[str], data: List[Dict[str, str]]) -> str:
     """
-    Создает улучшенную HTML таблицу с сортировкой
+    Создает простую HTML таблицу без сортировки
     """
     if not data:
         return "<p>Нет данных для отображения</p>"
     
-    html = [f'<table class="sortable-table" id="{table_id}">']
+    html = ['<table class="simple-table">']
     html.append('<thead><tr>')
     for header in headers:
-        html.append(f'<th data-sort="{header}">{header} <span class="sort-icon">↕</span></th>')
+        html.append(f'<th>{header}</th>')
     html.append('</tr></thead>')
     html.append('<tbody>')
     for row in data:
@@ -32,202 +32,10 @@ def create_enhanced_html_table(headers: List[str], data: List[Dict[str, str]], t
     html.append('</tbody></table>')
     return '\n'.join(html)
 
-def create_statistics_cards(analysis_data: AnalysisData, operations: Dict[str, Operation]) -> str:
+def generate_simple_html_report(mermaid_code: str, analysis_data: AnalysisData, operations: Dict[str, Operation], 
+                               choices: Choices, available_columns: List[str], output_file: Path) -> None:
     """
-    Создает карточки со статистикой
-    """
-    analysis = analysis_data.analysis
-    
-    # Расчет сложности процесса
-    complexity_score = calculate_complexity_score(operations, analysis_data)
-    
-    cards = [
-        {
-            'value': analysis.operations_count,
-            'label': 'Всего операций',
-            'icon': '📊',
-            'class': 'stat-primary'
-        },
-        {
-            'value': len(analysis.critical_points),
-            'label': 'Критических точек',
-            'icon': '⚠️',
-            'class': 'stat-warning'
-        },
-        {
-            'value': len(analysis.merge_points),
-            'label': 'Точек слияния',
-            'icon': '🔗',
-            'class': 'stat-info'
-        },
-        {
-            'value': len(analysis.split_points),
-            'label': 'Точек разветвления',
-            'icon': '🔀',
-            'class': 'stat-info'
-        },
-        {
-            'value': len(analysis.external_inputs),
-            'label': 'Внешних входов',
-            'icon': '📥',
-            'class': 'stat-success'
-        },
-        {
-            'value': len(analysis.final_outputs),
-            'label': 'Конечных выходов',
-            'icon': '📤',
-            'class': 'stat-success'
-        },
-        {
-            'value': f"{complexity_score}/10",
-            'label': 'Сложность процесса',
-            'icon': '🎯',
-            'class': 'stat-complexity'
-        }
-    ]
-    
-    html = ['<div class="stats-grid">']
-    for card in cards:
-        html.append(f'''
-            <div class="stat-card {card['class']}">
-                <div class="stat-icon">{card['icon']}</div>
-                <div class="stat-value">{card['value']}</div>
-                <div class="stat-label">{card['label']}</div>
-            </div>
-        ''')
-    html.append('</div>')
-    return '\n'.join(html)
-
-def calculate_complexity_score(operations: Dict[str, Operation], analysis_data: AnalysisData) -> int:
-    """Рассчитать оценку сложности процесса от 1 до 10"""
-    analysis = analysis_data.analysis
-    
-    # Весовые коэффициенты
-    weights = {
-        'operations': 0.3,
-        'merge_points': 0.2,
-        'split_points': 0.2,
-        'critical_points': 0.3
-    }
-    
-    # Нормализация значений (максимальные ожидаемые значения)
-    max_operations = 50
-    max_merge = 10
-    max_split = 10
-    max_critical = 5
-    
-    # Расчет нормализованных показателей
-    op_score = min(len(operations) / max_operations, 1.0)
-    merge_score = min(len(analysis.merge_points) / max_merge, 1.0)
-    split_score = min(len(analysis.split_points) / max_split, 1.0)
-    critical_score = min(len(analysis.critical_points) / max_critical, 1.0)
-    
-    # Общий счет
-    total_score = (
-        op_score * weights['operations'] +
-        merge_score * weights['merge_points'] +
-        split_score * weights['split_points'] +
-        critical_score * weights['critical_points']
-    )
-    
-    return min(10, int(total_score * 10) + 1)
-
-def create_analysis_accordion(analysis_data: AnalysisData) -> str:
-    """
-    Создает аккордеон для аналитических разделов
-    """
-    analysis = analysis_data.analysis
-    
-    html = ['<div class="analysis-accordion">']
-    
-    # Супер-критические операции
-    html.append('''
-        <div class="accordion-item">
-            <div class="accordion-header">
-                <h3>⚠️ Супер-критические операции</h3>
-                <span class="accordion-badge">{count}</span>
-                <span class="accordion-toggle">▼</span>
-            </div>
-            <div class="accordion-content">
-    '''.format(count=len(analysis.critical_points)))
-    
-    if analysis.critical_points:
-        html.append('<div class="critical-list">')
-        for cp in sorted(analysis.critical_points, key=lambda x: (x.inputs_count, x.output_reuse), reverse=True):
-            html.append(f'''
-                <div class="critical-item">
-                    <strong>{cp.operation}</strong>
-                    <div class="critical-stats">
-                        <span class="stat-badge">{cp.inputs_count} входов</span>
-                        <span class="stat-badge">{cp.output_reuse} использований выхода</span>
-                    </div>
-                </div>
-            ''')
-        html.append('</div>')
-    else:
-        html.append('<p class="no-data">Супер-критических операций не обнаружено</p>')
-    html.append('</div></div>')
-    
-    # Точки слияния
-    html.append('''
-        <div class="accordion-item">
-            <div class="accordion-header">
-                <h3>🔗 Точки слияния</h3>
-                <span class="accordion-badge">{count}</span>
-                <span class="accordion-toggle">▼</span>
-            </div>
-            <div class="accordion-content">
-    '''.format(count=len(analysis.merge_points)))
-    
-    if analysis.merge_points:
-        html.append('<div class="merge-list">')
-        for mp in sorted(analysis.merge_points, key=lambda x: x.input_count, reverse=True):
-            html.append(f'''
-                <div class="merge-item">
-                    <strong>{mp.operation}</strong>
-                    <span class="merge-count">{mp.input_count} входов</span>
-                </div>
-            ''')
-        html.append('</div>')
-    else:
-        html.append('<p class="no-data">Точек слияния не обнаружено</p>')
-    html.append('</div></div>')
-    
-    # Точки разветвления
-    html.append('''
-        <div class="accordion-item">
-            <div class="accordion-header">
-                <h3>🔀 Точки разветвления</h3>
-                <span class="accordion-badge">{count}</span>
-                <span class="accordion-toggle">▼</span>
-            </div>
-            <div class="accordion-content">
-    '''.format(count=len(analysis.split_points)))
-    
-    if analysis.split_points:
-        html.append('<div class="split-list">')
-        for sp in sorted(analysis.split_points, key=lambda x: x.target_count, reverse=True):
-            html.append(f'''
-                <div class="split-item">
-                    <strong>{sp.output}</strong>
-                    <div class="split-details">
-                        <span>из {sp.source_operation}</span>
-                        <span class="split-count">→ {sp.target_count} операций</span>
-                    </div>
-                </div>
-            ''')
-        html.append('</div>')
-    else:
-        html.append('<p class="no-data">Точек разветвления не обнаружено</p>')
-    html.append('</div></div>')
-    
-    html.append('</div>')  # закрываем analysis-accordion
-    return '\n'.join(html)
-
-def generate_enhanced_html_report(mermaid_code: str, analysis_data: AnalysisData, operations: Dict[str, Operation], 
-                                 choices: Choices, available_columns: List[str], output_file: Path) -> None:
-    """
-    Генерирует улучшенный HTML отчет с полной аналитикой
+    Генерирует упрощенный HTML отчет с навигацией по диаграмме
     """
     analysis = analysis_data.analysis
     
@@ -261,11 +69,11 @@ def generate_enhanced_html_report(mermaid_code: str, analysis_data: AnalysisData
             "Тип узла": node_type,
         }
         
-        if 'Группа' in available_columns:
+        if 'Группа' in available_columns and op.group:
             row_data["Группа"] = op.group
-        if 'Владелец' in available_columns:
+        if 'Владелец' in available_columns and op.owner:
             row_data["Владелец"] = op.owner
-        if 'Подробное описание операции' in available_columns:
+        if 'Подробное описание операции' in available_columns and op.detailed:
             row_data["Описание"] = op.detailed
             
         op_rows.append(row_data)
@@ -298,20 +106,10 @@ def generate_enhanced_html_report(mermaid_code: str, analysis_data: AnalysisData
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Диаграмма бизнес-процесса - Полный анализ</title>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <title>Диаграмма бизнес-процесса</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
-        :root {{
-            --primary-color: #007cba;
-            --warning-color: #ff6b35;
-            --success-color: #28a745;
-            --info-color: #17a2b8;
-            --complexity-color: #6f42c1;
-            --text-color: #333;
-            --border-color: #ddd;
-            --bg-light: #f8f9fa;
-        }}
-        
         * {{
             margin: 0;
             padding: 0;
@@ -319,648 +117,432 @@ def generate_enhanced_html_report(mermaid_code: str, analysis_data: AnalysisData
         }}
         
         body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             line-height: 1.6;
-            color: var(--text-color);
+            color: #333;
             background: #fff;
-        }}
-        
-        .container {{
             max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
         }}
         
-        /* Навигация */
-        .report-nav {{
-            background: white;
-            padding: 15px 20px;
-            border-bottom: 3px solid var(--primary-color);
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        .header {{
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e1e5e9;
+        }}
+        
+        .header h1 {{
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.2em;
+        }}
+        
+        .stats {{
             display: flex;
+            justify-content: center;
             gap: 20px;
+            margin: 15px 0;
             flex-wrap: wrap;
         }}
         
-        .nav-link {{
-            padding: 8px 16px;
-            text-decoration: none;
-            color: var(--text-color);
-            border-radius: 5px;
-            transition: all 0.3s ease;
-            font-weight: 500;
-        }}
-        
-        .nav-link:hover {{
-            background: var(--primary-color);
-            color: white;
-        }}
-        
-        /* Заголовки */
-        .section {{
-            margin: 30px 0;
-            padding: 20px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }}
-        
-        .section h2 {{
-            color: var(--primary-color);
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid var(--border-color);
-        }}
-        
-        /* Карточки статистики */
-        .stats-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin: 20px 0;
-        }}
-        
-        .stat-card {{
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            text-align: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            border-left: 4px solid var(--primary-color);
-        }}
-        
-        .stat-card.stat-warning {{ border-left-color: var(--warning-color); }}
-        .stat-card.stat-success {{ border-left-color: var(--success-color); }}
-        .stat-card.stat-info {{ border-left-color: var(--info-color); }}
-        .stat-card.stat-complexity {{ border-left-color: var(--complexity-color); }}
-        
-        .stat-icon {{
-            font-size: 2em;
-            margin-bottom: 10px;
-        }}
-        
-        .stat-value {{
-            font-size: 2em;
-            font-weight: bold;
-            margin: 10px 0;
-        }}
-        
-        .stat-label {{
-            color: #666;
+        .stat-item {{
+            background: #f8f9fa;
+            padding: 8px 15px;
+            border-radius: 6px;
+            border-left: 3px solid #3498db;
             font-size: 0.9em;
         }}
         
-        /* Аккордеон анализа */
-        .analysis-accordion {{
-            margin: 20px 0;
-        }}
-        
-        .accordion-item {{
-            border: 1px solid var(--border-color);
-            border-radius: 5px;
-            margin-bottom: 10px;
+        /* Секция диаграммы с навигацией */
+        .diagram-section {{
+            margin: 30px 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             overflow: hidden;
         }}
         
-        .accordion-header {{
-            background: var(--bg-light);
+        .diagram-header {{
+            background: #2c3e50;
+            color: white;
             padding: 15px 20px;
-            cursor: pointer;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            transition: background 0.3s ease;
         }}
         
-        .accordion-header:hover {{
-            background: #e9ecef;
-        }}
-        
-        .accordion-header h3 {{
-            margin: 0;
-            font-size: 1.1em;
-        }}
-        
-        .accordion-badge {{
-            background: var(--primary-color);
-            color: white;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.8em;
-        }}
-        
-        .accordion-toggle {{
-            transition: transform 0.3s ease;
-        }}
-        
-        .accordion-item.active .accordion-toggle {{
-            transform: rotate(180deg);
-        }}
-        
-        .accordion-content {{
-            padding: 0;
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease, padding 0.3s ease;
-        }}
-        
-        .accordion-item.active .accordion-content {{
-            padding: 20px;
-            max-height: 1000px;
-        }}
-        
-        /* Списки элементов */
-        .critical-list, .merge-list, .split-list {{
-            display: grid;
-            gap: 10px;
-        }}
-        
-        .critical-item, .merge-item, .split-item {{
-            padding: 15px;
-            background: var(--bg-light);
-            border-radius: 5px;
-            border-left: 4px solid var(--warning-color);
-        }}
-        
-        .merge-item {{ border-left-color: var(--info-color); }}
-        .split-item {{ border-left-color: var(--info-color); }}
-        
-        .critical-stats {{
-            margin-top: 8px;
+        .diagram-controls {{
             display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
         }}
         
-        .stat-badge {{
-            background: var(--warning-color);
+        .control-btn {{
+            background: #34495e;
             color: white;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 0.8em;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s;
         }}
         
-        .merge-count, .split-count {{
-            background: var(--info-color);
-            color: white;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 0.8em;
-            margin-left: 10px;
+        .control-btn:hover {{
+            background: #4a6b8a;
         }}
         
-        .split-details {{
-            margin-top: 5px;
-            color: #666;
-            font-size: 0.9em;
+        .download-btn {{
+            background: #27ae60;
         }}
         
-        .no-data {{
+        .download-btn:hover {{
+            background: #2ecc71;
+        }}
+        
+        .zoom-info {{
+            background: rgba(255,255,255,0.1);
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            min-width: 50px;
             text-align: center;
-            color: #666;
-            font-style: italic;
-            padding: 20px;
-        }}
-        
-        /* Диаграмма */
-        .diagram-section {{
-            margin: 30px 0;
         }}
         
         .diagram-container {{
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 20px;
-            background: white;
-            position: relative;
+            width: 100%;
+            height: 600px;
             overflow: auto;
-            min-height: 400px;
+            position: relative;
+            background: 
+                linear-gradient(90deg, #f8f9fa 1px, transparent 1px),
+                linear-gradient(#f8f9fa 1px, transparent 1px);
+            background-size: 20px 20px;
+            cursor: grab;
         }}
         
-        .mermaid-controls {{
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 100;
-            display: flex;
-            gap: 5px;
+        .diagram-container.dragging {{
+            cursor: grabbing;
+        }}
+        
+        #mermaid-diagram {{
+            padding: 40px;
+            min-width: fit-content;
+            min-height: fit-content;
+        }}
+        
+        .mermaid {{
+            text-align: center;
+        }}
+        
+        /* Увеличиваем размеры Mermaid по умолчанию */
+        .mermaid svg {{
+            transform: scale(1);
+            transform-origin: 0 0;
+        }}
+        
+        /* Секции с таблицами */
+        .section {{
+            margin: 30px 0;
             background: white;
-            padding: 5px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
         }}
         
-        .mermaid-controls button {{
-            padding: 5px 10px;
-            border: 1px solid var(--border-color);
-            background: white;
-            border-radius: 3px;
-            cursor: pointer;
+        .section-header {{
+            background: #34495e;
+            color: white;
+            padding: 15px 20px;
+            font-size: 1.1em;
         }}
         
-        .mermaid-controls button:hover {{
-            background: var(--bg-light);
+        .section-content {{
+            padding: 20px;
         }}
         
-        /* Таблицы */
-        .table-section {{
-            margin: 20px 0;
-        }}
-        
-        .sortable-table {{
+        /* Простые таблицы */
+        .simple-table {{
             width: 100%;
             border-collapse: collapse;
             margin: 10px 0;
+            font-size: 0.9em;
         }}
         
-        .sortable-table th {{
-            background: var(--primary-color);
-            color: white;
-            padding: 12px;
+        .simple-table th {{
+            background: #f8f9fa;
+            padding: 12px 15px;
             text-align: left;
-            cursor: pointer;
-            position: relative;
+            border-bottom: 2px solid #e1e5e9;
+            font-weight: 600;
+            color: #2c3e50;
         }}
         
-        .sortable-table th:hover {{
-            background: #005a87;
+        .simple-table td {{
+            padding: 10px 15px;
+            border-bottom: 1px solid #e1e5e9;
         }}
         
-        .sort-icon {{
-            margin-left: 5px;
-            font-size: 0.8em;
-        }}
-        
-        .sortable-table td {{
-            padding: 10px 12px;
-            border-bottom: 1px solid var(--border-color);
-        }}
-        
-        .sortable-table tr:hover {{
-            background: var(--bg-light);
+        .simple-table tr:hover {{
+            background: #f8f9fa;
         }}
         
         /* Легенда */
-        .legend-grid {{
+        .legend {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-            margin: 20px 0;
+            gap: 10px;
+            margin: 15px 0;
         }}
         
         .legend-item {{
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px;
-            background: var(--bg-light);
-            border-radius: 5px;
+            gap: 8px;
+            font-size: 0.85em;
         }}
         
         .legend-color {{
-            width: 20px;
-            height: 20px;
+            width: 16px;
+            height: 16px;
             border-radius: 3px;
             border: 1px solid #ccc;
         }}
         
         /* Адаптивность */
         @media (max-width: 768px) {{
-            .stats-grid {{
-                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            }}
-            
-            .report-nav {{
+            .stats {{
                 flex-direction: column;
-                gap: 10px;
+                align-items: center;
             }}
             
-            .nav-link {{
-                text-align: center;
-            }}
-            
-            .mermaid-controls {{
-                position: relative;
-                top: 0;
-                right: 0;
+            .diagram-controls {{
+                flex-wrap: wrap;
                 justify-content: center;
-                margin-bottom: 10px;
             }}
+            
+            .diagram-container {{
+                height: 400px;
+            }}
+            
+            .legend {{
+                grid-template-columns: 1fr;
+            }}
+        }}
+        
+        .nav-hint {{
+            font-size: 0.8em;
+            color: #7f8c8d;
+            text-align: center;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
         }}
     </style>
 </head>
 <body>
-    <nav class="report-nav">
-        <a href="#overview" class="nav-link">📊 Обзор</a>
-        <a href="#diagram" class="nav-link">🔍 Диаграмма</a>
-        <a href="#analysis" class="nav-link">📈 Анализ</a>
-        <a href="#registry" class="nav-link">📋 Реестры</a>
-        <a href="#statistics" class="nav-link">📊 Статистика</a>
-        <a href="#legend" class="nav-link">🎨 Легенда</a>
-    </nav>
+    <div class="header">
+        <h1>Диаграмма бизнес-процесса</h1>
+        <div class="stats">
+            <div class="stat-item">Операций: {analysis.operations_count}</div>
+            <div class="stat-item">Входы: {len(analysis.external_inputs)}</div>
+            <div class="stat-item">Выходы: {len(analysis.final_outputs)}</div>
+            <div class="stat-item">Критические: {len(analysis.critical_points)}</div>
+        </div>
+    </div>
 
-    <div class="container">
-        <!-- Секция обзора -->
-        <section id="overview" class="section">
-            <h2>📊 Обзор бизнес-процесса</h2>
-            {create_statistics_cards(analysis_data, operations)}
-        </section>
-
-        <!-- Секция диаграммы -->
-        <section id="diagram" class="section">
-            <h2>🔍 Визуальная диаграмма процесса</h2>
-            <div class="diagram-container">
-                <div class="mermaid-controls">
-                    <button id="zoomInBtn">🔍 +</button>
-                    <button id="zoomOutBtn">🔍 -</button>
-                    <button id="resetZoomBtn">🗘 Сброс</button>
-                    <button id="fitToScreenBtn">📐 Вместить</button>
-                </div>
-                <div class="mermaid" id="mermaid-diagram">
+    <!-- Секция диаграммы -->
+    <div class="diagram-section">
+        <div class="diagram-header">
+            <h2>Визуализация процесса</h2>
+            <div class="diagram-controls">
+                <button class="control-btn" onclick="zoomOut()" title="Уменьшить">−</button>
+                <div class="zoom-info" id="zoomInfo">100%</div>
+                <button class="control-btn" onclick="zoomIn()" title="Увеличить">+</button>
+                <button class="control-btn" onclick="resetView()" title="Сбросить вид">Сброс</button>
+                <button class="control-btn" onclick="fitToScreen()" title="Вместить в экран">Вместить</button>
+                <button class="control-btn download-btn" onclick="downloadPNG()" title="Скачать PNG">📥 PNG</button>
+            </div>
+        </div>
+        <div class="diagram-container" id="diagramContainer">
+            <div class="mermaid" id="mermaid-diagram">
 {mermaid_code}
+            </div>
+        </div>
+        <div class="nav-hint">
+            🖱️ <strong>Колесо мыши</strong> - масштаб • <strong>ЛКМ + перетаскивание</strong> - навигация • 
+            <strong>Ctrl+колесо</strong> - точный масштаб • <strong>Ctrl+0</strong> - сброс
+        </div>
+    </div>
+
+    <!-- Легенда -->
+    <div class="section">
+        <div class="section-header">Легенда диаграммы</div>
+        <div class="section-content">
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #fff9c4; border-color: #f57f17;"></div>
+                    <span>Внешние входы</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ffcdd2; border-color: #c62828;"></div>
+                    <span>Конечные выходы</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ffb74d; border-color: #ef6c00;"></div>
+                    <span>Операции слияния</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ba68c8; border-color: #6a1b9a;"></div>
+                    <span>Операции разветвления</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ff4444; border-color: #000;"></div>
+                    <span>Супер-критические операции</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #90caf9; border-color: #1565c0;"></div>
+                    <span>Обычные операции</span>
                 </div>
             </div>
-        </section>
+        </div>
+    </div>
 
-        <!-- Секция анализа -->
-        <section id="analysis" class="section">
-            <h2>📈 Анализ критических точек</h2>
-            {create_analysis_accordion(analysis_data)}
-        </section>
+    <!-- Реестр операций -->
+    <div class="section">
+        <div class="section-header">Реестр операций</div>
+        <div class="section-content">
+            {create_simple_html_table(
+                ["Операция"] + 
+                (["Группа"] if available_cols['group'] else []) +
+                (["Владелец"] if available_cols['owner'] else []) +
+                ["Входы", "Выходы", "Тип узла"] +
+                (["Описание"] if available_cols['detailed_desc'] else []),
+                op_rows
+            )}
+        </div>
+    </div>
 
-        <!-- Секция реестров -->
-        <section id="registry" class="section">
-            <h2>📋 Реестры операций и связей</h2>
-            
-            <div class="table-section">
-                <h3>Операции процесса</h3>
-                {create_enhanced_html_table(
-                    ["Операция"] + 
-                    (["Группа"] if available_cols['group'] else []) +
-                    (["Владелец"] if available_cols['owner'] else []) +
-                    ["Входы", "Выходы", "Тип узла"] +
-                    (["Описание"] if available_cols['detailed_desc'] else []),
-                    op_rows, "operations-table"
-                )}
-            </div>
-
-            <div class="table-section">
-                <h3>Входы и выходы системы</h3>
-                {create_enhanced_html_table(
-                    ["Элемент", "Источник", "Потребители"],
-                    io_rows, "io-table"
-                )}
-            </div>
-        </section>
-
-        <!-- Секция статистики -->
-        <section id="statistics" class="section">
-            <h2>📊 Детальная статистика</h2>
-            <div class="stats-details">
-                <div class="stat-item">
-                    <strong>Общая статистика:</strong>
-                    <ul>
-                        <li>Всего операций: {analysis.operations_count}</li>
-                        <li>Внешние входы: {len(analysis.external_inputs)}</li>
-                        <li>Конечные выходы: {len(analysis.final_outputs)}</li>
-                    </ul>
-                </div>
-                <div class="stat-item">
-                    <strong>Анализ сложности:</strong>
-                    <ul>
-                        <li>Операций слияния: {len(analysis.merge_points)}</li>
-                        <li>Операций разветвления: {len(analysis.split_points)}</li>
-                        <li>Супер-критических операций: {len(analysis.critical_points)}</li>
-                    </ul>
-                </div>
-            </div>
-        </section>
-
-        <!-- Секция легенды -->
-        <section id="legend" class="section">
-            <h2>🎨 Легенда диаграммы</h2>
-            <div class="legend-grid">
-                <div class="legend-item">
-                    <div class="legend-color" style="background: yellow;"></div>
-                    <span>Желтые овалы - внешние входы</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: red;"></div>
-                    <span>Красные овалы - конечные выходы</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: orange;"></div>
-                    <span>Оранжевые прямоугольники - операции слияния</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: purple;"></div>
-                    <span>Фиолетовые прямоугольники - операции разветвления</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #ff4444;"></div>
-                    <span>Пульсирующие красные - супер-критические операции</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #007cba;"></div>
-                    <span>Синие прямоугольники - стандартные операции</span>
-                </div>
-            </div>
-        </section>
+    <!-- Реестр входов/выходов -->
+    <div class="section">
+        <div class="section-header">Входы и выходы системы</div>
+        <div class="section-content">
+            {create_simple_html_table(
+                ["Элемент", "Источник", "Потребители"],
+                io_rows
+            )}
+        </div>
     </div>
 
     <script>
-        // Глобальные переменные для управления диаграммой
-        let diagramScale = 1.0;
-        let mermaidElement = null;
-        let diagramContainer = null;
-
-        // Инициализация при загрузке страницы
+        // Состояние навигации
+        let scale = 1.0; // Начальный масштаб 100%
+        let isDragging = false;
+        let startX, startY, startScrollX, startScrollY;
+        
+        // Элементы DOM
+        const diagramContainer = document.getElementById('diagramContainer');
+        const mermaidElement = document.getElementById('mermaid-diagram');
+        const zoomInfo = document.getElementById('zoomInfo');
+        
+        // Инициализация при загрузке
         document.addEventListener('DOMContentLoaded', function() {{
-            console.log('DOM loaded, initializing...');
-            
             // Инициализация Mermaid
             mermaid.initialize({{ 
                 startOnLoad: true,
                 theme: 'default',
-                securityLevel: 'loose'
+                securityLevel: 'loose',
+                fontFamily: 'Arial, sans-serif',
+                flowchart: {{
+                    useMaxWidth: false,
+                    htmlLabels: true,
+                    curve: 'basis'
+                }}
             }});
             
-            // Активируем первую секцию аккордеона
-            const firstAccordion = document.querySelector('.accordion-item');
-            if (firstAccordion) {{
-                firstAccordion.classList.add('active');
-            }}
-            
-            // Инициализация элементов управления диаграммой
-            initDiagramControls();
-            
-            // Инициализация навигации и сортировки
-            initNavigation();
-            initTableSorting();
+            // Переинициализация Mermaid для преобразования диаграммы
+            mermaid.init(undefined, document.querySelectorAll('.mermaid')).then(() => {{
+                // После рендеринга Mermaid подгоняем диаграмму под экран
+                setTimeout(() => {{
+                    fitToScreen();
+                    setupNavigation();
+                }}, 100);
+            }});
         }});
-
-        function initDiagramControls() {{
-            console.log('Initializing diagram controls...');
+        
+        function setupNavigation() {{
+            // Перетаскивание для панорамирования
+            diagramContainer.addEventListener('mousedown', startDragging);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', stopDragging);
             
-            mermaidElement = document.getElementById('mermaid-diagram');
-            diagramContainer = document.querySelector('.diagram-container');
+            // Масштабирование колесом мыши
+            diagramContainer.addEventListener('wheel', onWheel, {{ passive: false }});
             
-            if (!mermaidElement) {{
-                console.error('Mermaid diagram element not found');
-                return;
+            // Обработка клавиатуры
+            document.addEventListener('keydown', onKeyDown);
+        }}
+        
+        function startDragging(e) {{
+            if (e.button === 0) {{ // Левая кнопка мыши
+                isDragging = true;
+                diagramContainer.classList.add('dragging');
+                startX = e.clientX;
+                startY = e.clientY;
+                startScrollX = diagramContainer.scrollLeft;
+                startScrollY = diagramContainer.scrollTop;
+                e.preventDefault();
             }}
-            
-            if (!diagramContainer) {{
-                console.error('Diagram container not found');
-                return;
-            }}
-            
-            // Назначаем обработчики кнопок
-            document.getElementById('zoomInBtn').addEventListener('click', zoomIn);
-            document.getElementById('zoomOutBtn').addEventListener('click', zoomOut);
-            document.getElementById('resetZoomBtn').addEventListener('click', resetZoom);
-            document.getElementById('fitToScreenBtn').addEventListener('click', fitToScreen);
-            
-            console.log('Diagram controls initialized');
-            
-            // Автоматически подгоняем диаграмму после загрузки
-            setTimeout(fitToScreen, 1000);
-        }}
-
-        function zoomIn() {{
-            if (!mermaidElement) return;
-            diagramScale = Math.min(3.0, diagramScale + 0.1);
-            updateDiagramScale();
         }}
         
-        function zoomOut() {{
-            if (!mermaidElement) return;
-            diagramScale = Math.max(0.3, diagramScale - 0.1);
-            updateDiagramScale();
+        function drag(e) {{
+            if (!isDragging) return;
+            
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            diagramContainer.scrollLeft = startScrollX - deltaX;
+            diagramContainer.scrollTop = startScrollY - deltaY;
+            
+            e.preventDefault();
         }}
         
-        function resetZoom() {{
-            if (!mermaidElement) return;
-            diagramScale = 1.0;
-            updateDiagramScale();
-            // Сброс скролла к центру
-            setTimeout(() => {{
-                if (diagramContainer) {{
-                    diagramContainer.scrollLeft = (diagramContainer.scrollWidth - diagramContainer.clientWidth) / 2;
-                    diagramContainer.scrollTop = (diagramContainer.scrollHeight - diagramContainer.clientHeight) / 2;
-                }}
-            }}, 100);
+        function stopDragging() {{
+            isDragging = false;
+            diagramContainer.classList.remove('dragging');
         }}
         
-        function fitToScreen() {{
-            if (!mermaidElement || !diagramContainer) return;
+        function onWheel(e) {{
+            e.preventDefault();
             
-            const svg = mermaidElement.querySelector('svg');
-            if (!svg) {{
-                console.warn('SVG element not found in mermaid diagram');
-                return;
-            }}
+            const rect = diagramContainer.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
             
-            const containerWidth = diagramContainer.clientWidth - 40;
-            const containerHeight = diagramContainer.clientHeight - 40;
-            const svgWidth = svg.getBoundingClientRect().width;
-            const svgHeight = svg.getBoundingClientRect().height;
+            // Сохраняем текущую позицию скролла
+            const scrollX = diagramContainer.scrollLeft;
+            const scrollY = diagramContainer.scrollTop;
             
-            if (svgWidth === 0 || svgHeight === 0) {{
-                console.warn('SVG dimensions are zero, retrying...');
-                setTimeout(fitToScreen, 500);
-                return;
-            }}
+            const delta = -Math.sign(e.deltaY) * (e.ctrlKey ? 0.05 : 0.1);
+            const newScale = Math.max(0.1, Math.min(10, scale + delta));
             
-            const scaleX = containerWidth / svgWidth;
-            const scaleY = containerHeight / svgHeight;
-            diagramScale = Math.min(scaleX, scaleY, 1.0);
-            updateDiagramScale();
-            
-            // Центрируем диаграмму после подгонки
-            setTimeout(() => {{
-                if (diagramContainer) {{
-                    diagramContainer.scrollLeft = (diagramContainer.scrollWidth - diagramContainer.clientWidth) / 2;
-                    diagramContainer.scrollTop = (diagramContainer.scrollHeight - diagramContainer.clientHeight) / 2;
-                }}
-            }}, 100);
-        }}
-        
-        function updateDiagramScale() {{
-            if (!mermaidElement) return;
-            mermaidElement.style.transform = 'scale(' + diagramScale + ')';
-            mermaidElement.style.transformOrigin = '0 0';
-            console.log('Diagram scale updated to: ' + diagramScale);
-        }}
-        
-        function initNavigation() {{
-            // Плавная прокрутка для навигации
-            document.querySelectorAll('.nav-link').forEach(link => {{
-                link.addEventListener('click', (e) => {{
-                    e.preventDefault();
-                    const targetId = link.getAttribute('href').substring(1);
-                    const targetSection = document.getElementById(targetId);
-                    if (targetSection) {{
-                        targetSection.scrollIntoView({{
-                            behavior: 'smooth',
-                            block: 'start'
-                        }});
-                    }}
-                }});
-            }});
-            
-            // Аккордеон
-            document.querySelectorAll('.accordion-header').forEach(header => {{
-                header.addEventListener('click', () => {{
-                    const item = header.parentElement;
-                    item.classList.toggle('active');
-                }});
-            }});
-        }}
-        
-        function initTableSorting() {{
-            // Сортировка таблиц
-            document.querySelectorAll('.sortable-table th').forEach(header => {{
-                header.addEventListener('click', () => {{
-                    const table = header.closest('table');
-                    const columnIndex = Array.from(header.parentElement.children).indexOf(header);
-                    sortTable(table, columnIndex);
-                }});
-            }});
-        }}
-        
-        function sortTable(table, columnIndex) {{
-            const tbody = table.querySelector('tbody');
-            const rows = Array.from(tbody.querySelectorAll('tr'));
-            
-            // Проверяем, являются ли данные числовыми
-            const isNumeric = rows.every(row => {{
-                const cell = row.children[columnIndex];
-                const text = cell.textContent.trim();
-                return !isNaN(parseFloat(text)) && isFinite(text);
-            }});
-            
-            rows.sort((a, b) => {{
-                const aVal = a.children[columnIndex].textContent.trim();
-                const bVal = b.children[columnIndex].textContent.trim();
+            if (newScale !== scale) {{
+                const oldScale = scale;
+                scale = newScale;
+                updateScale();
+                updateZoomInfo();
                 
-                if (isNumeric) {{
-                    return parseFloat(aVal) - parseFloat(bVal);
-                }} else {{
-                    return aVal.localeCompare(bVal, 'ru');
-                }}
-            }});
-            
-            // Удаляем старые строки и добавляем отсортированные
-            tbody.innerHTML = '';
-            rows.forEach(row => tbody.appendChild(row));
+                // Корректируем скролл для сохранения позиции под курсором
+                const scaleRatio = newScale / oldScale;
+                diagramContainer.scrollLeft = mouseX * scaleRatio - (mouseX - scrollX);
+                diagramContainer.scrollTop = mouseY * scaleRatio - (mouseY - scrollY);
+            }}
         }}
-
-        // Обработка клавиатуры для масштабирования
-        document.addEventListener('keydown', (e) => {{
+        
+        function onKeyDown(e) {{
+            // Горячие клавиши для масштабирования
             if ((e.ctrlKey || e.metaKey) && !e.altKey) {{
                 if (e.key === '=' || e.key === '+') {{
                     e.preventDefault();
@@ -970,12 +552,149 @@ def generate_enhanced_html_report(mermaid_code: str, analysis_data: AnalysisData
                     zoomOut();
                 }} else if (e.key === '0') {{
                     e.preventDefault();
-                    resetZoom();
-                }} else if (e.key === '1') {{
-                    e.preventDefault();
-                    fitToScreen();
+                    resetView();
                 }}
             }}
+            
+            // Escape для выхода из режима перетаскивания
+            if (e.key === 'Escape' && isDragging) {{
+                stopDragging();
+            }}
+        }}
+        
+        function zoomIn() {{
+            const rect = diagramContainer.getBoundingClientRect();
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            
+            const scrollX = diagramContainer.scrollLeft;
+            const scrollY = diagramContainer.scrollTop;
+            
+            const oldScale = scale;
+            scale = Math.min(10, scale + 0.1);
+            updateScale();
+            updateZoomInfo();
+            
+            // Корректируем скролл для сохранения центра
+            const scaleRatio = scale / oldScale;
+            diagramContainer.scrollLeft = centerX * scaleRatio - (centerX - scrollX);
+            diagramContainer.scrollTop = centerY * scaleRatio - (centerY - scrollY);
+        }}
+        
+        function zoomOut() {{
+            const rect = diagramContainer.getBoundingClientRect();
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            
+            const scrollX = diagramContainer.scrollLeft;
+            const scrollY = diagramContainer.scrollTop;
+            
+            const oldScale = scale;
+            scale = Math.max(0.1, scale - 0.1);
+            updateScale();
+            updateZoomInfo();
+            
+            // Корректируем скролл для сохранения центра
+            const scaleRatio = scale / oldScale;
+            diagramContainer.scrollLeft = centerX * scaleRatio - (centerX - scrollX);
+            diagramContainer.scrollTop = centerY * scaleRatio - (centerY - scrollY);
+        }}
+        
+        function resetView() {{
+            scale = 1.0;
+            updateScale();
+            updateZoomInfo();
+            centerDiagram();
+        }}
+        
+        function fitToScreen() {{
+            const svg = mermaidElement.querySelector('svg');
+            if (!svg) return;
+            
+            const container = diagramContainer;
+            const svgRect = svg.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            
+            // Вычисляем масштаб для вписывания диаграммы в контейнер
+            const scaleX = containerRect.width / svgRect.width;
+            const scaleY = containerRect.height / svgRect.height;
+            const fitScale = Math.min(scaleX, scaleY) * 0.9; // 90% для отступов
+            
+            scale = Math.max(0.1, Math.min(1.0, fitScale)); // Ограничиваем сверху 100%
+            updateScale();
+            updateZoomInfo();
+            centerDiagram();
+        }}
+        
+        function centerDiagram() {{
+            const svg = mermaidElement.querySelector('svg');
+            if (!svg) return;
+            
+            const svgRect = svg.getBoundingClientRect();
+            const container = diagramContainer;
+            
+            diagramContainer.scrollLeft = (svgRect.width * scale - container.clientWidth) / 2;
+            diagramContainer.scrollTop = (svgRect.height * scale - container.clientHeight) / 2;
+        }}
+        
+        function updateScale() {{
+            const svg = mermaidElement.querySelector('svg');
+            if (svg) {{
+                svg.style.transform = `scale(${{scale}})`;
+                svg.style.transformOrigin = '0 0';
+            }}
+        }}
+        
+        function updateZoomInfo() {{
+            const percentage = Math.round(scale * 100);
+            zoomInfo.textContent = `${{percentage}}%`;
+        }}
+        
+        function downloadPNG() {{
+            const svg = mermaidElement.querySelector('svg');
+            if (!svg) {{
+                alert('SVG элемент не найден');
+                return;
+            }}
+            
+            // Создаем временный контейнер для рендеринга
+            const tempContainer = document.createElement('div');
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.left = '-9999px';
+            tempContainer.style.top = '-9999px';
+            tempContainer.style.backgroundColor = 'white';
+            tempContainer.style.padding = '40px';
+            
+            // Клонируем SVG и сбрасываем трансформацию для полного размера
+            const clonedSvg = svg.cloneNode(true);
+            clonedSvg.style.transform = 'scale(1)';
+            clonedSvg.style.transformOrigin = '0 0';
+            
+            tempContainer.appendChild(clonedSvg);
+            document.body.appendChild(tempContainer);
+            
+            html2canvas(tempContainer, {{
+                backgroundColor: '#ffffff',
+                scale: 2,
+                useCORS: true,
+                allowTaint: false,
+                logging: false
+            }}).then(canvas => {{
+                const link = document.createElement('a');
+                link.download = 'business_process_diagram.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                document.body.removeChild(tempContainer);
+            }}).catch(error => {{
+                console.error('Ошибка при создании PNG:', error);
+                document.body.removeChild(tempContainer);
+                alert('Ошибка при создании PNG файла');
+            }});
+        }}
+        
+        // Обработка изменения размера окна
+        window.addEventListener('resize', function() {{
+            setTimeout(updateZoomInfo, 100);
         }});
     </script>
 </body>
@@ -986,7 +705,7 @@ def generate_enhanced_html_report(mermaid_code: str, analysis_data: AnalysisData
 def export_html_mermaid(operations: Dict[str, Operation], analysis_data: AnalysisData, 
                        choices: Choices, available_columns: List[str], output_base: str = None) -> None:
     """
-    Экспортирует диаграмму в улучшенный HTML с полной аналитикой
+    Экспортирует диаграмму в упрощенный HTML с навигацией
     """
     if output_base is None:
         output_base = "business_process_diagram"
@@ -996,12 +715,18 @@ def export_html_mermaid(operations: Dict[str, Operation], analysis_data: Analysi
     # Генерация Mermaid кода
     mermaid_code = build_mermaid_html(operations, analysis_data, choices)
 
-    # Генерация улучшенного HTML отчета
-    generate_enhanced_html_report(mermaid_code, analysis_data, operations, choices, available_columns, output_file)
+    # Генерация упрощенного HTML отчета
+    generate_simple_html_report(mermaid_code, analysis_data, operations, choices, available_columns, output_file)
     
     print(f"\n" + "="*60)
-    print("✓ УЛУЧШЕННЫЙ HTML-ОТЧЕТ УСПЕШНО СОЗДАН!")
+    print("✓ УПРОЩЕННЫЙ HTML-ОТЧЕТ С НАВИГАЦИЕЙ УСПЕШНО СОЗДАН!")
     print("="*60)
     print(f"Файл: {output_file}")
-    print(f"Статистика: {analysis_data.analysis.operations_count} операций")
-    print(f"Сложность процесса: {calculate_complexity_score(operations, analysis_data)}/10")
+    print("🎯 ОСНОВНЫЕ ВОЗМОЖНОСТИ:")
+    print("   • 🔍 Автоматическое вписывание в экран при открытии")
+    print("   • 🖱️  Колесо мыши - масштабирование диаграммы (10% - 1000%)")
+    print("   • 🖱️  ЛКМ + перетаскивание - панорамирование во всех направлениях")
+    print("   • 📥  Экспорт в PNG в полном размере")
+    print("   • 🎯  Кнопка 'Вместить' для автоматического подгона под экран")
+    print("   • ⌨️  Горячие клавиши: Ctrl++/-/0, Escape для отмены перетаскивания")
+    print(f"   • 📊 {analysis_data.analysis.operations_count} операций, {len(analysis_data.analysis.critical_points)} критических")
