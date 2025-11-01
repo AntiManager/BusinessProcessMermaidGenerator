@@ -1,41 +1,41 @@
 """
-Экспорт в HTML с упрощенным дизайном и базовой навигацией
+Экспорт в HTML с минималистичной визуализацией Mermaid диаграмм
 """
 import json
 from pathlib import Path
 from typing import Dict, List
 from models import Operation, Choices, AnalysisData
-from exporters.mermaid_exporter import build_mermaid_html
 from utils import safe_id, escape_text, clean_text
 from config import ENCODING
 
-def create_simple_html_table(headers: List[str], data: List[Dict[str, str]]) -> str:
+def create_simple_table(headers: List[str], data: List[Dict[str, str]]) -> str:
     """
-    Создает простую HTML таблицу без сортировки
+    Создает минималистичную HTML таблицу
     """
     if not data:
         return "<p>Нет данных для отображения</p>"
     
-    html = ['<table class="simple-table">']
+    html = ['<table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 14px;">']
     html.append('<thead><tr>')
     for header in headers:
-        html.append(f'<th>{header}</th>')
+        html.append(f'<th style="border: 1px solid #ddd; padding: 8px; text-align: left; background: #f9f9f9;">{header}</th>')
     html.append('</tr></thead>')
     html.append('<tbody>')
-    for row in data:
-        html.append('<tr>')
+    for i, row in enumerate(data):
+        bg_color = '#f9f9f9' if i % 2 == 0 else '#fff'
+        html.append(f'<tr style="background: {bg_color};">')
         for header in headers:
             value = str(row.get(header, ""))
             value = value.replace('\n', '<br>')
-            html.append(f'<td>{value}</td>')
+            html.append(f'<td style="border: 1px solid #ddd; padding: 8px;">{value}</td>')
         html.append('</tr>')
     html.append('</tbody></table>')
     return '\n'.join(html)
 
-def generate_simple_html_report(mermaid_code: str, analysis_data: AnalysisData, operations: Dict[str, Operation], 
+def generate_minimal_html_report(mermaid_code: str, analysis_data: AnalysisData, operations: Dict[str, Operation], 
                                choices: Choices, available_columns: List[str], output_file: Path) -> None:
     """
-    Генерирует упрощенный HTML отчет с навигацией по диаграмме
+    Генерирует минималистичный HTML отчет с акцентом на диаграмму
     """
     analysis = analysis_data.analysis
     
@@ -93,7 +93,7 @@ def generate_simple_html_report(mermaid_code: str, analysis_data: AnalysisData, 
             "Источник": src,
             "Потребители": ", ".join(tgts) if tgts else "-",
         })
-    
+
     # Определение доступных колонок
     available_cols = {
         'group': 'Группа' in available_columns,
@@ -101,13 +101,31 @@ def generate_simple_html_report(mermaid_code: str, analysis_data: AnalysisData, 
         'detailed_desc': 'Подробное описание операции' in available_columns
     }
 
+    # Генерация HTML для критических операций
+    critical_ops_html = ""
+    if analysis.critical_points:
+        critical_items = []
+        for cp in sorted(analysis.critical_points, key=lambda x: (x.inputs_count, x.output_reuse), reverse=True):
+            critical_items.append(f'''
+                <div class="critical-item">
+                    <strong>{cp.operation}</strong><br>
+                    {cp.inputs_count} входов, выход используется в {cp.output_reuse} операциях
+                </div>
+            ''')
+        critical_ops_html = f'''
+            <div class="section">
+                <h2 class="section-header">Критические операции</h2>
+                {''.join(critical_items)}
+            </div>
+        '''
+
     html_content = f'''<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Диаграмма бизнес-процесса</title>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11.0.1/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         * {{
@@ -118,108 +136,82 @@ def generate_simple_html_report(mermaid_code: str, analysis_data: AnalysisData, 
         
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
+            line-height: 1.5;
             color: #333;
             background: #fff;
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
+            padding: 0;
         }}
         
-        .header {{
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #e1e5e9;
+        .container {{
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
         }}
         
-        .header h1 {{
-            color: #2c3e50;
-            margin-bottom: 10px;
-            font-size: 2.2em;
-        }}
-        
-        .stats {{
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            margin: 15px 0;
-            flex-wrap: wrap;
-        }}
-        
-        .stat-item {{
-            background: #f8f9fa;
-            padding: 8px 15px;
-            border-radius: 6px;
-            border-left: 3px solid #3498db;
-            font-size: 0.9em;
-        }}
-        
-        /* Секция диаграммы с навигацией */
+        /* Секция диаграммы - ПЕРВАЯ И ГЛАВНАЯ */
         .diagram-section {{
-            margin: 30px 0;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            overflow: hidden;
+            background: #fff;
+            border-bottom: 1px solid #e1e5e9;
+            margin: 0;
         }}
         
         .diagram-header {{
-            background: #2c3e50;
-            color: white;
-            padding: 15px 20px;
+            background: #f8f9fa;
+            padding: 12px 20px;
+            border-bottom: 1px solid #e1e5e9;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
         }}
         
         .diagram-controls {{
             display: flex;
             gap: 8px;
             align-items: center;
+            flex-wrap: wrap;
         }}
         
         .control-btn {{
-            background: #34495e;
+            background: #6c757d;
             color: white;
             border: none;
             padding: 6px 12px;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 13px;
             transition: background 0.2s;
         }}
         
         .control-btn:hover {{
-            background: #4a6b8a;
+            background: #5a6268;
         }}
         
         .download-btn {{
-            background: #27ae60;
+            background: #28a745;
         }}
         
         .download-btn:hover {{
-            background: #2ecc71;
+            background: #218838;
         }}
         
         .zoom-info {{
-            background: rgba(255,255,255,0.1);
+            background: #fff;
             padding: 4px 8px;
             border-radius: 3px;
-            font-size: 11px;
-            min-width: 50px;
+            font-size: 12px;
+            min-width: 60px;
             text-align: center;
+            border: 1px solid #ddd;
         }}
         
         .diagram-container {{
             width: 100%;
-            height: 600px;
+            height: 75vh;
+            min-height: 500px;
             overflow: auto;
-            position: relative;
-            background: 
-                linear-gradient(90deg, #f8f9fa 1px, transparent 1px),
-                linear-gradient(#f8f9fa 1px, transparent 1px);
-            background-size: 20px 20px;
+            background: #fafafa;
             cursor: grab;
         }}
         
@@ -228,217 +220,216 @@ def generate_simple_html_report(mermaid_code: str, analysis_data: AnalysisData, 
         }}
         
         #mermaid-diagram {{
-            padding: 40px;
-            min-width: fit-content;
-            min-height: fit-content;
+            padding: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100%;
         }}
         
+        /* Минималистичные стили Mermaid */
         .mermaid {{
             text-align: center;
         }}
         
-        /* Увеличиваем размеры Mermaid по умолчанию */
-        .mermaid svg {{
-            transform: scale(1);
-            transform-origin: 0 0;
+        .mermaid .node rect {{
+            stroke-width: 1.5px;
+            rx: 4px;
+            ry: 4px;
         }}
         
-        /* Секции с таблицами */
+        /* Секции с таблицами - ПОСЛЕ ДИАГРАММЫ */
+        .content-section {{
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }}
+        
         .section {{
-            margin: 30px 0;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            overflow: hidden;
+            margin: 0 0 30px 0;
+            background: #fff;
         }}
         
         .section-header {{
-            background: #34495e;
-            color: white;
-            padding: 15px 20px;
-            font-size: 1.1em;
-        }}
-        
-        .section-content {{
-            padding: 20px;
-        }}
-        
-        /* Простые таблицы */
-        .simple-table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin: 10px 0;
-            font-size: 0.9em;
-        }}
-        
-        .simple-table th {{
-            background: #f8f9fa;
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 2px solid #e1e5e9;
+            font-size: 1.4em;
             font-weight: 600;
+            margin: 0 0 15px 0;
+            padding: 0 0 10px 0;
+            border-bottom: 2px solid #e1e5e9;
             color: #2c3e50;
         }}
         
-        .simple-table td {{
-            padding: 10px 15px;
-            border-bottom: 1px solid #e1e5e9;
-        }}
-        
-        .simple-table tr:hover {{
-            background: #f8f9fa;
-        }}
-        
-        /* Легенда */
-        .legend {{
+        .stats-grid {{
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 10px;
-            margin: 15px 0;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
         }}
         
-        .legend-item {{
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.85em;
+        .stat-item {{
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #3498db;
         }}
         
-        .legend-color {{
-            width: 16px;
-            height: 16px;
-            border-radius: 3px;
-            border: 1px solid #ccc;
+        .stat-value {{
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #2c3e50;
+            display: block;
         }}
         
-        /* Адаптивность */
-        @media (max-width: 768px) {{
-            .stats {{
-                flex-direction: column;
-                align-items: center;
-            }}
-            
-            .diagram-controls {{
-                flex-wrap: wrap;
-                justify-content: center;
-            }}
-            
-            .diagram-container {{
-                height: 400px;
-            }}
-            
-            .legend {{
-                grid-template-columns: 1fr;
-            }}
+        .stat-label {{
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-top: 5px;
         }}
         
         .nav-hint {{
             font-size: 0.8em;
-            color: #7f8c8d;
+            color: #6c757d;
             text-align: center;
-            margin-top: 10px;
             padding: 10px;
             background: #f8f9fa;
+            border-top: 1px solid #e1e5e9;
+        }}
+        
+        .critical-item {{
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }}
+        
+        @media (max-width: 768px) {{
+            .diagram-controls {{
+                justify-content: center;
+            }}
+            
+            .diagram-container {{
+                height: 60vh;
+                padding: 15px;
+            }}
+            
+            .stats-grid {{
+                grid-template-columns: 1fr;
+            }}
+            
+            .content-section {{
+                padding: 20px 15px;
+            }}
         }}
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Диаграмма бизнес-процесса</h1>
-        <div class="stats">
-            <div class="stat-item">Операций: {analysis.operations_count}</div>
-            <div class="stat-item">Входы: {len(analysis.external_inputs)}</div>
-            <div class="stat-item">Выходы: {len(analysis.final_outputs)}</div>
-            <div class="stat-item">Критические: {len(analysis.critical_points)}</div>
-        </div>
-    </div>
-
-    <!-- Секция диаграммы -->
-    <div class="diagram-section">
-        <div class="diagram-header">
-            <h2>Визуализация процесса</h2>
-            <div class="diagram-controls">
-                <button class="control-btn" onclick="zoomOut()" title="Уменьшить">−</button>
-                <div class="zoom-info" id="zoomInfo">100%</div>
-                <button class="control-btn" onclick="zoomIn()" title="Увеличить">+</button>
-                <button class="control-btn" onclick="resetView()" title="Сбросить вид">Сброс</button>
-                <button class="control-btn" onclick="fitToScreen()" title="Вместить в экран">Вместить</button>
-                <button class="control-btn download-btn" onclick="downloadPNG()" title="Скачать PNG">📥 PNG</button>
+    <div class="container">
+        <!-- ДИАГРАММА - ПЕРВАЯ И ГЛАВНАЯ -->
+        <div class="diagram-section">
+            <div class="diagram-header">
+                <div style="font-weight: 600; color: #2c3e50;">Диаграмма бизнес-процесса</div>
+                <div class="diagram-controls">
+                    <button class="control-btn" onclick="zoomOut()" title="Уменьшить">−</button>
+                    <div class="zoom-info" id="zoomInfo">100%</div>
+                    <button class="control-btn" onclick="zoomIn()" title="Увеличить">+</button>
+                    <button class="control-btn" onclick="resetView()" title="Сбросить вид">Сброс</button>
+                    <button class="control-btn" onclick="fitToScreen()" title="Вместить в экран">Вместить</button>
+                    <button class="control-btn download-btn" onclick="downloadPNG()" title="Скачать PNG">PNG</button>
+                </div>
             </div>
-        </div>
-        <div class="diagram-container" id="diagramContainer">
-            <div class="mermaid" id="mermaid-diagram">
+            <div class="diagram-container" id="diagramContainer">
+                <div class="mermaid" id="mermaid-diagram">
 {mermaid_code}
-            </div>
-        </div>
-        <div class="nav-hint">
-            🖱️ <strong>Колесо мыши</strong> - масштаб • <strong>ЛКМ + перетаскивание</strong> - навигация • 
-            <strong>Ctrl+колесо</strong> - точный масштаб • <strong>Ctrl+0</strong> - сброс
-        </div>
-    </div>
-
-    <!-- Легенда -->
-    <div class="section">
-        <div class="section-header">Легенда диаграммы</div>
-        <div class="section-content">
-            <div class="legend">
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #fff9c4; border-color: #f57f17;"></div>
-                    <span>Внешние входы</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #ffcdd2; border-color: #c62828;"></div>
-                    <span>Конечные выходы</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #ffb74d; border-color: #ef6c00;"></div>
-                    <span>Операции слияния</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #ba68c8; border-color: #6a1b9a;"></div>
-                    <span>Операции разветвления</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #ff4444; border-color: #000;"></div>
-                    <span>Супер-критические операции</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #90caf9; border-color: #1565c0;"></div>
-                    <span>Обычные операции</span>
                 </div>
             </div>
+            <div class="nav-hint">
+                Колесо мыши - масштаб • ЛКМ + перетаскивание - навигация • Ctrl+колесо - точный масштаб
+            </div>
         </div>
-    </div>
 
-    <!-- Реестр операций -->
-    <div class="section">
-        <div class="section-header">Реестр операций</div>
-        <div class="section-content">
-            {create_simple_html_table(
-                ["Операция"] + 
-                (["Группа"] if available_cols['group'] else []) +
-                (["Владелец"] if available_cols['owner'] else []) +
-                ["Входы", "Выходы", "Тип узла"] +
-                (["Описание"] if available_cols['detailed_desc'] else []),
-                op_rows
-            )}
-        </div>
-    </div>
+        <!-- СТАТИСТИКА И АНАЛИЗ -->
+        <div class="content-section">
+            <div class="section">
+                <h2 class="section-header">Статистика процесса</h2>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-value">{analysis.operations_count}</span>
+                        <span class="stat-label">Операций</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value">{len(analysis.external_inputs)}</span>
+                        <span class="stat-label">Внешние входы</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value">{len(analysis.final_outputs)}</span>
+                        <span class="stat-label">Конечные выходы</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value">{len(analysis.critical_points)}</span>
+                        <span class="stat-label">Критические операции</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value">{len(analysis.merge_points)}</span>
+                        <span class="stat-label">Точек слияния</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value">{len(analysis.split_points)}</span>
+                        <span class="stat-label">Точек разветвления</span>
+                    </div>
+                </div>
+            </div>
 
-    <!-- Реестр входов/выходов -->
-    <div class="section">
-        <div class="section-header">Входы и выходы системы</div>
-        <div class="section-content">
-            {create_simple_html_table(
-                ["Элемент", "Источник", "Потребители"],
-                io_rows
-            )}
+            <!-- Критические операции -->
+            {critical_ops_html}
+
+            <!-- Реестр операций -->
+            <div class="section">
+                <h2 class="section-header">Реестр операций</h2>
+                {create_simple_table(
+                    ["Операция"] + 
+                    (["Группа"] if available_cols['group'] else []) +
+                    (["Владелец"] if available_cols['owner'] else []) +
+                    ["Входы", "Выходы", "Тип узла"] +
+                    (["Описание"] if available_cols['detailed_desc'] else []),
+                    op_rows
+                )}
+            </div>
+
+            <!-- Реестр входов/выходов -->
+            <div class="section">
+                <h2 class="section-header">Входы и выходы системы</h2>
+                {create_simple_table(
+                    ["Элемент", "Источник", "Потребители"],
+                    io_rows
+                )}
+            </div>
         </div>
     </div>
 
     <script>
+        // Минималистичная конфигурация Mermaid
+        const mermaidConfig = {{
+            startOnLoad: true,
+            theme: 'default',
+            securityLevel: 'loose',
+            fontFamily: 'Arial, sans-serif',
+            flowchart: {{
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 15,
+                rankSpacing: 40,
+                nodeSpacing: 80,
+                rankSep: 80,
+                wrap: true,
+                wrappingWidth: 150
+            }}
+        }};
+
         // Состояние навигации
-        let scale = 1.0; // Начальный масштаб 100%
+        let scale = 1.0;
         let isDragging = false;
         let startX, startY, startScrollX, startScrollY;
         
@@ -448,28 +439,23 @@ def generate_simple_html_report(mermaid_code: str, analysis_data: AnalysisData, 
         const zoomInfo = document.getElementById('zoomInfo');
         
         // Инициализация при загрузке
-        document.addEventListener('DOMContentLoaded', function() {{
+        document.addEventListener('DOMContentLoaded', async function() {{
             // Инициализация Mermaid
-            mermaid.initialize({{ 
-                startOnLoad: true,
-                theme: 'default',
-                securityLevel: 'loose',
-                fontFamily: 'Arial, sans-serif',
-                flowchart: {{
-                    useMaxWidth: false,
-                    htmlLabels: true,
-                    curve: 'basis'
-                }}
-            }});
+            mermaid.initialize(mermaidConfig);
             
-            // Переинициализация Mermaid для преобразования диаграммы
-            mermaid.init(undefined, document.querySelectorAll('.mermaid')).then(() => {{
+            try {{
+                // Переинициализация Mermaid для преобразования диаграммы
+                await mermaid.run({{ querySelector: '.mermaid' }});
+                
                 // После рендеринга Mermaid подгоняем диаграмму под экран
                 setTimeout(() => {{
                     fitToScreen();
                     setupNavigation();
                 }}, 100);
-            }});
+                
+            }} catch (error) {{
+                console.error('Ошибка рендеринга Mermaid:', error);
+            }}
         }});
         
         function setupNavigation() {{
@@ -526,7 +512,7 @@ def generate_simple_html_report(mermaid_code: str, analysis_data: AnalysisData, 
             const scrollY = diagramContainer.scrollTop;
             
             const delta = -Math.sign(e.deltaY) * (e.ctrlKey ? 0.05 : 0.1);
-            const newScale = Math.max(0.1, Math.min(10, scale + delta));
+            const newScale = Math.max(0.1, Math.min(10, scale + delta)); // УВЕЛИЧЕНО ДО 1000%
             
             if (newScale !== scale) {{
                 const oldScale = scale;
@@ -553,6 +539,9 @@ def generate_simple_html_report(mermaid_code: str, analysis_data: AnalysisData, 
                 }} else if (e.key === '0') {{
                     e.preventDefault();
                     resetView();
+                }} else if (e.key === '1') {{
+                    e.preventDefault();
+                    fitToScreen();
                 }}
             }}
             
@@ -571,7 +560,7 @@ def generate_simple_html_report(mermaid_code: str, analysis_data: AnalysisData, 
             const scrollY = diagramContainer.scrollTop;
             
             const oldScale = scale;
-            scale = Math.min(10, scale + 0.1);
+            scale = Math.min(10, scale + 0.1); // УВЕЛИЧЕНО ДО 1000%
             updateScale();
             updateZoomInfo();
             
@@ -618,9 +607,9 @@ def generate_simple_html_report(mermaid_code: str, analysis_data: AnalysisData, 
             // Вычисляем масштаб для вписывания диаграммы в контейнер
             const scaleX = containerRect.width / svgRect.width;
             const scaleY = containerRect.height / svgRect.height;
-            const fitScale = Math.min(scaleX, scaleY) * 0.9; // 90% для отступов
+            const fitScale = Math.min(scaleX, scaleY) * 0.9;
             
-            scale = Math.max(0.1, Math.min(1.0, fitScale)); // Ограничиваем сверху 100%
+            scale = Math.max(0.1, Math.min(1.0, fitScale));
             updateScale();
             updateZoomInfo();
             centerDiagram();
@@ -663,7 +652,7 @@ def generate_simple_html_report(mermaid_code: str, analysis_data: AnalysisData, 
             tempContainer.style.left = '-9999px';
             tempContainer.style.top = '-9999px';
             tempContainer.style.backgroundColor = 'white';
-            tempContainer.style.padding = '40px';
+            tempContainer.style.padding = '30px';
             
             // Клонируем SVG и сбрасываем трансформацию для полного размера
             const clonedSvg = svg.cloneNode(true);
@@ -705,7 +694,7 @@ def generate_simple_html_report(mermaid_code: str, analysis_data: AnalysisData, 
 def export_html_mermaid(operations: Dict[str, Operation], analysis_data: AnalysisData, 
                        choices: Choices, available_columns: List[str], output_base: str = None) -> None:
     """
-    Экспортирует диаграмму в упрощенный HTML с навигацией
+    Экспортирует диаграмму в минималистичный HTML с акцентом на диаграмму
     """
     if output_base is None:
         output_base = "business_process_diagram"
@@ -713,20 +702,20 @@ def export_html_mermaid(operations: Dict[str, Operation], analysis_data: Analysi
     output_file = Path(f"{output_base}.html")
 
     # Генерация Mermaid кода
+    from exporters.mermaid_exporter import build_mermaid_html
     mermaid_code = build_mermaid_html(operations, analysis_data, choices)
 
-    # Генерация упрощенного HTML отчета
-    generate_simple_html_report(mermaid_code, analysis_data, operations, choices, available_columns, output_file)
+    # Генерация минималистичного HTML отчета
+    generate_minimal_html_report(mermaid_code, analysis_data, operations, choices, available_columns, output_file)
     
     print(f"\n" + "="*60)
-    print("✓ УПРОЩЕННЫЙ HTML-ОТЧЕТ С НАВИГАЦИЕЙ УСПЕШНО СОЗДАН!")
+    print("✓ МИНИМАЛИСТИЧНЫЙ HTML-ОТЧЕТ СОЗДАН!")
     print("="*60)
     print(f"Файл: {output_file}")
-    print("🎯 ОСНОВНЫЕ ВОЗМОЖНОСТИ:")
-    print("   • 🔍 Автоматическое вписывание в экран при открытии")
-    print("   • 🖱️  Колесо мыши - масштабирование диаграммы (10% - 1000%)")
-    print("   • 🖱️  ЛКМ + перетаскивание - панорамирование во всех направлениях")
-    print("   • 📥  Экспорт в PNG в полном размере")
-    print("   • 🎯  Кнопка 'Вместить' для автоматического подгона под экран")
-    print("   • ⌨️  Горячие клавиши: Ctrl++/-/0, Escape для отмены перетаскивания")
-    print(f"   • 📊 {analysis_data.analysis.operations_count} операций, {len(analysis_data.analysis.critical_points)} критических")
+    print("🎯 ОСОБЕННОСТИ:")
+    print("   • 🎯 Диаграмма на первом месте - сразу при открытии")
+    print("   • 🎨 Минималистичный дизайн как в Markdown")
+    print("   • 🔍 Увеличенный масштаб до 1000% для больших процессов")
+    print("   • 📊 Чистая статистика после диаграммы")
+    print("   • 🖱️  Простая навигация без избыточных элементов")
+    print(f"   • 📈 {analysis_data.analysis.operations_count} операций, {len(analysis_data.analysis.critical_points)} критических")
