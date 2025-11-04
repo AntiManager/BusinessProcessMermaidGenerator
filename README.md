@@ -49,8 +49,7 @@
 - 🎨 **Гибкость** - поддержка множественных входов и выходов
 
 **Пример вывода отчета:**
-[BP_diagram](../BusinessProcessMermaidGenerator
-/BP_diagram.md)
+[BP_diagram](../BusinessProcessMermaidGenerator/BP_diagram.md)
 
 ## 📊 Теория: Causal Loop Diagrams (CLD)
 
