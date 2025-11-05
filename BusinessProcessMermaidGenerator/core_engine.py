@@ -86,13 +86,9 @@ class BusinessProcessEngine:
         try:
             output_files = []
             
-            # ИСПРАВЛЕНИЕ: Используем переданную папку из choices или текущую директорию
+            # ИЗМЕНЕНИЕ: Упрощенная логика определения папки
             if output_dir is None:
-                # Если в choices указана папка, используем её
-                if hasattr(choices, 'output_directory') and choices.output_directory:
-                    output_dir = Path(choices.output_directory)
-                else:
-                    output_dir = Path(".")
+                output_dir = choices.output_directory
             
             # Создаем папку если она не существует
             output_dir.mkdir(parents=True, exist_ok=True)

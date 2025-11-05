@@ -51,8 +51,8 @@ class DiagramGenerator:
                 if not self.engine.analyze_business_processes(choices):
                     return False, "Не удалось проанализировать бизнес-процессы", []
             
-            # ИСПРАВЛЕНИЕ: Передаем output_directory в export_diagram
-            output_files = self.engine.export_diagram(choices, output_base, available_columns, Path(choices.output_directory) if choices.output_directory else None)
+            # ИЗМЕНЕНИЕ: Передаем output_directory как Path (теперь он уже Path в Choices)
+            output_files = self.engine.export_diagram(choices, output_base, available_columns, choices.output_directory)
             
             if not output_files:
                 return False, "Не удалось создать файлы диаграммы", []

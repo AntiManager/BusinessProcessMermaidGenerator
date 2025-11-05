@@ -531,17 +531,19 @@ class BusinessProcessGUI:
             total_count = len(selected_formats)
             active_tab = self.notebook.index(self.notebook.select())
             
+            # ИЗМЕНЕНИЕ: Создаем output_directory как Path
+            output_dir = Path(self.output_directory.get()) if self.output_directory.get() else Path(".")
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
             for output_format in selected_formats:
                 try:
                     # Определяем параметры в зависимости от вкладки и типа формата
                     if active_tab == 0:  # Вкладка БП
-                        # Все форматы на вкладке БП используют авто-CLD
                         sheet_to_use = self.sheet_name.get()
                         cld_source_type = "auto"
-                        cld_sheet_to_use = ""  # Для авто-CLD не нужен отдельный лист
+                        cld_sheet_to_use = ""
                     else:  # Вкладка CLD
-                        # Все форматы на вкладке CLD используют ручной режим
-                        sheet_to_use = self.cld_sheet_name.get()  # Главный лист - CLD данные
+                        sheet_to_use = self.cld_sheet_name.get()
                         cld_source_type = "manual"
                         cld_sheet_to_use = self.cld_sheet_name.get()
                     
@@ -549,7 +551,6 @@ class BusinessProcessGUI:
                         messagebox.showerror("Ошибка", "Не выбран лист для генерации")
                         continue
                     
-                    # Для CLD форматов на вкладке БП используем настройки БП, для CLD вкладки - CLD настройки
                     choices = Choices(
                         subgroup_column=self.subgroup_column.get() if not self.no_grouping.get() and active_tab == 0 else None,
                         show_detailed=self.show_detailed.get() if active_tab == 0 else False,
@@ -561,7 +562,7 @@ class BusinessProcessGUI:
                         cld_sheet_name=cld_sheet_to_use,
                         show_cld_operations=self.show_cld_operations.get(),
                         cld_influence_signs=self.cld_influence_signs.get(),
-                        output_directory=self.output_directory.get()  # ПЕРЕДАЕМ ПУТЬ СОХРАНЕНИЯ
+                        output_directory=output_dir  # ИЗМЕНЕНИЕ: передаем Path
                     )
                     
                     success = run_with_gui(excel_path, sheet_to_use, choices, self.output_base.get())

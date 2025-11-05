@@ -1,9 +1,38 @@
-"""
-Data classes и модели данных с улучшенной валидацией
-"""
+"""Data classes и модели данных с улучшенной валидацией"""
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Set
+from pathlib import Path
 import re
+
+@dataclass
+class Choices:
+    subgroup_column: Optional[str] = None
+    show_detailed: bool = False
+    critical_min_inputs: int = 3
+    critical_min_reuse: int = 3
+    no_grouping: bool = False
+    output_format: str = "md"
+    cld_source_type: str = "auto"
+    cld_sheet_name: str = ""
+    show_cld_operations: bool = True
+    cld_influence_signs: bool = True
+    output_directory: Path = field(default_factory=lambda: Path("."))  # ИЗМЕНЕНИЕ: Path вместо str
+    
+    def __post_init__(self):
+        """Валидация настроек"""
+        valid_formats = ["md", "html_mermaid", "html_interactive", "cld_mermaid", "cld_interactive"]
+        if self.output_format not in valid_formats:
+            raise ValueError(f"Некорректный формат вывода: {self.output_format}")
+        
+        if self.cld_source_type not in ["auto", "manual"]:
+            raise ValueError(f"Некорректный тип источника CLD: {self.cld_source_type}")
+        
+        # ИЗМЕНЕНИЕ: Валидация output_directory
+        if not isinstance(self.output_directory, Path):
+            self.output_directory = Path(str(self.output_directory))
+        
+        # Создаем директорию если она не существует
+        self.output_directory.mkdir(parents=True, exist_ok=True)
 
 @dataclass
 class Operation:
@@ -66,29 +95,6 @@ class CausalLink:
         self.target = self.target.strip()
         self.influence = self.influence.strip()
 
-@dataclass
-@dataclass
-class Choices:
-    subgroup_column: Optional[str] = None
-    show_detailed: bool = False
-    critical_min_inputs: int = 3
-    critical_min_reuse: int = 3
-    no_grouping: bool = False
-    output_format: str = "md"
-    cld_source_type: str = "auto"
-    cld_sheet_name: str = ""
-    show_cld_operations: bool = True
-    cld_influence_signs: bool = True
-    output_directory: str = ""  # Убедитесь что это поле присутствует
-    
-    def __post_init__(self):
-        """Валидация настроек"""
-        valid_formats = ["md", "html_mermaid", "html_interactive", "cld_mermaid", "cld_interactive"]
-        if self.output_format not in valid_formats:
-            raise ValueError(f"Некорректный формат вывода: {self.output_format}")
-        
-        if self.cld_source_type not in ["auto", "manual"]:
-            raise ValueError(f"Некорректный тип источника CLD: {self.cld_source_type}")
 
 @dataclass
 class MergePoint:
