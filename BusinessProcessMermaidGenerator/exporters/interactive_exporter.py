@@ -489,15 +489,15 @@ def generate_interactive_html_file(html_data: Dict[str, Any], output_file: Path)
     output_file.write_text(html_content, encoding=ENCODING)
 
 def export_interactive_html(operations: Dict[str, Operation], analysis_data: AnalysisData, 
-                           choices: Choices, output_base: str = None) -> Path:
+                           choices: Choices, output_base: str = None, output_dir: Path = None) -> Path:
     """
     Экспортирует диаграмму в интерактивный HTML - ВОЗВРАЩАЕТ Path
     """
-    # Используем переданное имя файла или значение по умолчанию
-    if output_base is None:
-        output_base = "business_process_diagram"
+    # Используем переданную папку или текущую директорию
+    if output_dir is None:
+        output_dir = Path(".")
     
-    output_file = Path(f"{output_base}.html")
+    output_file = output_dir / f"{output_base}.html"
 
     # Генерация данных для интерактивного графа
     html_data = build_interactive_html_data(operations, analysis_data)

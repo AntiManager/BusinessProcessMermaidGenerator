@@ -758,14 +758,15 @@ def generate_minimal_html_report(mermaid_code: str, analysis_data: AnalysisData,
     output_file.write_text(html_content, encoding=ENCODING)
 
 def export_html_mermaid(operations: Dict[str, Operation], analysis_data: AnalysisData, 
-                       choices: Choices, available_columns: List[str], output_base: str = None) -> Path:
+                       choices: Choices, available_columns: List[str], output_base: str = None, output_dir: Path = None) -> Path:
     """
     Экспортирует диаграмму в минималистичный HTML с акцентом на диаграмму - ВОЗВРАЩАЕТ Path
     """
-    if output_base is None:
-        output_base = "business_process_diagram"
+    # Используем переданную папку или текущую директорию
+    if output_dir is None:
+        output_dir = Path(".")
     
-    output_file = Path(f"{output_base}.html")
+    output_file = output_dir / f"{output_base}.html"
 
     # Генерация Mermaid кода
     from exporters.mermaid_exporter import build_mermaid_html

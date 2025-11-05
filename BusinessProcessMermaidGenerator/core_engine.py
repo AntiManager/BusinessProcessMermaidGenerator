@@ -81,10 +81,21 @@ class BusinessProcessEngine:
             logger.error(f"Ошибка загрузки CLD анализа: {e}")
             return False
     
-    def export_diagram(self, choices: Choices, output_base: str, available_columns: list = None) -> List[Path]:
+    def export_diagram(self, choices: Choices, output_base: str, available_columns: list = None, output_dir: Path = None) -> List[Path]:
         """Экспорт диаграммы в выбранный формат - ВОЗВРАЩАЕТ СПИСОК ФАЙЛОВ"""
         try:
             output_files = []
+            
+            # ИСПРАВЛЕНИЕ: Используем переданную папку из choices или текущую директорию
+            if output_dir is None:
+                # Если в choices указана папка, используем её
+                if hasattr(choices, 'output_directory') and choices.output_directory:
+                    output_dir = Path(choices.output_directory)
+                else:
+                    output_dir = Path(".")
+            
+            # Создаем папку если она не существует
+            output_dir.mkdir(parents=True, exist_ok=True)
             
             if choices.output_format in ["cld_mermaid", "cld_interactive"]:
                 if not self.causal_analysis:
@@ -93,18 +104,18 @@ class BusinessProcessEngine:
                 
                 if choices.output_format == "cld_mermaid":
                     # Основной файл CLD + интерактивная версия
-                    main_file = self._safe_export(export_cld_mermaid, self.causal_analysis, choices, output_base)
+                    main_file = self._safe_export(export_cld_mermaid, self.causal_analysis, choices, output_base, output_dir)
                     if main_file:
                         output_files.append(main_file)
                     
                     # Автоматически создаем интерактивную версию с суффиксом _cld
                     interactive_base = f"{output_base}_cld"
-                    interactive_file = self._safe_export(export_cld_interactive, self.causal_analysis, choices, interactive_base)
+                    interactive_file = self._safe_export(export_cld_interactive, self.causal_analysis, choices, interactive_base, output_dir)
                     if interactive_file:
                         output_files.append(interactive_file)
                     
                 else:  # cld_interactive
-                    interactive_file = self._safe_export(export_cld_interactive, self.causal_analysis, choices, output_base)
+                    interactive_file = self._safe_export(export_cld_interactive, self.causal_analysis, choices, output_base, output_dir)
                     if interactive_file:
                         output_files.append(interactive_file)
                     
@@ -115,30 +126,30 @@ class BusinessProcessEngine:
                 
                 if choices.output_format == "md":
                     # Основной Markdown + интерактивная версия
-                    main_file = self._safe_export(export_mermaid, self.operations, self.analysis_data, choices, available_columns or [], output_base)
+                    main_file = self._safe_export(export_mermaid, self.operations, self.analysis_data, choices, available_columns or [], output_base, output_dir)
                     if main_file:
                         output_files.append(main_file)
                     
                     # Автоматически создаем интерактивную версию с суффиксом _vis
                     interactive_base = f"{output_base}_vis"
-                    interactive_file = self._safe_export(export_interactive_html, self.operations, self.analysis_data, choices, interactive_base)
+                    interactive_file = self._safe_export(export_interactive_html, self.operations, self.analysis_data, choices, interactive_base, output_dir)
                     if interactive_file:
                         output_files.append(interactive_file)
                     
                 elif choices.output_format == "html_mermaid":
                     # Основной HTML + интерактивная версия
-                    main_file = self._safe_export(export_html_mermaid, self.operations, self.analysis_data, choices, available_columns or [], output_base)
+                    main_file = self._safe_export(export_html_mermaid, self.operations, self.analysis_data, choices, available_columns or [], output_base, output_dir)
                     if main_file:
                         output_files.append(main_file)
                     
                     # Автоматически создаем интерактивную версию с суффиксом _vis
                     interactive_base = f"{output_base}_vis"
-                    interactive_file = self._safe_export(export_interactive_html, self.operations, self.analysis_data, choices, interactive_base)
+                    interactive_file = self._safe_export(export_interactive_html, self.operations, self.analysis_data, choices, interactive_base, output_dir)
                     if interactive_file:
                         output_files.append(interactive_file)
                     
                 elif choices.output_format == "html_interactive":
-                    interactive_file = self._safe_export(export_interactive_html, self.operations, self.analysis_data, choices, output_base)
+                    interactive_file = self._safe_export(export_interactive_html, self.operations, self.analysis_data, choices, output_base, output_dir)
                     if interactive_file:
                         output_files.append(interactive_file)
                 else:

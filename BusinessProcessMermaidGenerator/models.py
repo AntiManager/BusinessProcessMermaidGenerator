@@ -66,7 +66,7 @@ class CausalLink:
         self.target = self.target.strip()
         self.influence = self.influence.strip()
 
-# Остальные data classes остаются без изменений, но добавляем валидацию где необходимо
+@dataclass
 @dataclass
 class Choices:
     subgroup_column: Optional[str] = None
@@ -79,6 +79,7 @@ class Choices:
     cld_sheet_name: str = ""
     show_cld_operations: bool = True
     cld_influence_signs: bool = True
+    output_directory: str = ""  # Убедитесь что это поле присутствует
     
     def __post_init__(self):
         """Валидация настроек"""
@@ -89,7 +90,6 @@ class Choices:
         if self.cld_source_type not in ["auto", "manual"]:
             raise ValueError(f"Некорректный тип источника CLD: {self.cld_source_type}")
 
-# Остальные data classes остаются без изменений...
 @dataclass
 class MergePoint:
     operation: str

@@ -17,7 +17,7 @@ class DiagramGenerator:
         self.engine = BusinessProcessEngine()
     
     def generate_diagram(self, excel_path: Path, sheet_name: str, choices: Choices, 
-                        output_base: str, available_columns: list = None) -> Tuple[bool, str, List[Path]]:
+                    output_base: str, available_columns: list = None) -> Tuple[bool, str, List[Path]]:
         """
         Генерация диаграммы с улучшенной обработкой ошибок
         Возвращает (успех, сообщение, список_созданных_файлов)
@@ -51,8 +51,9 @@ class DiagramGenerator:
                 if not self.engine.analyze_business_processes(choices):
                     return False, "Не удалось проанализировать бизнес-процессы", []
             
-            # Экспорт диаграммы
-            output_files = self.engine.export_diagram(choices, output_base, available_columns)
+            # ИСПРАВЛЕНИЕ: Передаем output_directory в export_diagram
+            output_files = self.engine.export_diagram(choices, output_base, available_columns, Path(choices.output_directory) if choices.output_directory else None)
+            
             if not output_files:
                 return False, "Не удалось создать файлы диаграммы", []
             
@@ -196,3 +197,43 @@ def get_file_extension(output_format: str) -> str:
         "cld_interactive": "html"
     }
     return extensions.get(output_format, "html")
+
+# В core_api.py добавляем метод для множественной генерации
+def run_multiple_formats(excel_path: Path, sheet_name: str, formats: List[str], 
+                        choices_template: Choices, output_base: str) -> bool:
+    """
+    Запуск генерации для нескольких форматов
+    """
+    success_count = 0
+    
+    for output_format in formats:
+        try:
+            # Создаем копию choices с текущим форматом
+            choices = Choices(
+                subgroup_column=choices_template.subgroup_column,
+                show_detailed=choices_template.show_detailed,
+                critical_min_inputs=choices_template.critical_min_inputs,
+                critical_min_reuse=choices_template.critical_min_reuse,
+                no_grouping=choices_template.no_grouping,
+                output_format=output_format,
+                cld_source_type=choices_template.cld_source_type,
+                cld_sheet_name=choices_template.cld_sheet_name,
+                show_cld_operations=choices_template.show_cld_operations,
+                cld_influence_signs=choices_template.cld_influence_signs
+            )
+            
+            generator = DiagramGenerator()
+            success, message, output_files = generator.generate_diagram(
+                excel_path, sheet_name, choices, output_base
+            )
+            
+            if success:
+                success_count += 1
+                log.info(f"✓ Успешно создан формат: {output_format}")
+            else:
+                log.error(f"✗ Ошибка в формате {output_format}: {message}")
+                
+        except Exception as e:
+            log.error(f"✗ Критическая ошибка в формате {output_format}: {e}")
+    
+    return success_count > 0

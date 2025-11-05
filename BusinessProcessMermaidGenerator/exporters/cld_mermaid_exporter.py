@@ -60,14 +60,15 @@ def build_cld_mermaid(causal_analysis: CausalAnalysis, choices: Choices) -> str:
     return "\n".join(lines)
 
 def export_cld_mermaid(causal_analysis: CausalAnalysis, choices: Choices, 
-                      output_base: str = None) -> Path:
+                      output_base: str = None, output_dir: Path = None) -> Path:
     """
     Экспортирует CLD в Markdown файл - ОБНОВЛЕННАЯ ВЕРСИЯ С ВОЗВРАТОМ Path
     """
-    if output_base is None:
-        output_base = "causal_loop_diagram"
+    # Используем переданную папку или текущую директорию
+    if output_dir is None:
+        output_dir = Path(".")
     
-    output_file = Path(f"{output_base}.md")
+    output_file = output_dir / f"{output_base}.md"
     
     # Генерация Mermaid кода
     mermaid_code = build_cld_mermaid(causal_analysis, choices)

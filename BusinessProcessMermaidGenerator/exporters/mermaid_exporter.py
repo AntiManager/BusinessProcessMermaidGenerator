@@ -273,7 +273,7 @@ def _build_op_registry(operations: Dict[str, Operation],
     return rows
 
 def export_mermaid(operations: Dict[str, Operation], analysis_data: AnalysisData, 
-                  choices: Choices, available_columns: List[str], output_base: str = None) -> Path:
+                  choices: Choices, available_columns: List[str], output_base: str = None, output_dir: Path = None) -> Path:
     """
     Экспортирует диаграмму в Markdown с Mermaid - ВОЗВРАЩАЕТ Path
     """
@@ -281,7 +281,11 @@ def export_mermaid(operations: Dict[str, Operation], analysis_data: AnalysisData
     if output_base is None:
         output_base = "business_process_diagram"
     
-    output_file = Path(f"{output_base}.md")
+    # Используем переданную папку или текущую директорию
+    if output_dir is None:
+        output_dir = Path(".")
+    
+    output_file = output_dir / f"{output_base}.md"  # ИЗМЕНЕНИЕ: используем output_dir
 
     # Генерация Mermaid кода
     mermaid_code = build_mermaid_md(operations, analysis_data, choices)

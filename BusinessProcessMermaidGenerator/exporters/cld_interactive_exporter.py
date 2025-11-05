@@ -99,14 +99,15 @@ def build_cld_interactive_data(causal_analysis: CausalAnalysis, choices: Choices
     }
 
 def export_cld_interactive(causal_analysis: CausalAnalysis, choices: Choices,
-                          output_base: str = None) -> None:
+                          output_base: str = None, output_dir: Path = None) -> Path:
     """
     Экспортирует интерактивный CLD - ИСПРАВЛЕННАЯ ВЕРСИЯ
     """
-    if output_base is None:
-        output_base = "causal_loop_diagram"
+    # Используем переданную папку или текущую директорию
+    if output_dir is None:
+        output_dir = Path(".")
     
-    output_file = Path(f"{output_base}.html")
+    output_file = output_dir / f"{output_base}.html"
     
     # Генерация данных
     html_data = build_cld_interactive_data(causal_analysis, choices)
