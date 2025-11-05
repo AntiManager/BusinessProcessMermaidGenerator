@@ -10,18 +10,21 @@ from pathlib import Path
 from typing import Dict, Any, List
 from models import Choices
 from config import CRITICAL_MIN_INPUTS, CRITICAL_MIN_REUSE
-from core_api import run_with_gui
+from core_engine import BusinessProcessEngine
 
 class BusinessProcessGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Генератор диаграмм бизнес-процессов v3.5")
-        self.root.geometry("900x750")  # Увеличили высоту для новой кнопки
-        self.root.minsize(850, 600)
+        self.root.geometry("900x800")  # Увеличили высоту для новой кнопки
+        self.root.minsize(850, 650)
         
         # Загрузка конфигурации
         self.config_file = Path("bp_config.json")
         self.config = self.load_config()
+        
+        # Инициализация движка
+        self.engine = BusinessProcessEngine()
         
         # Инициализация переменных интерфейса
         self._init_variables()
@@ -30,7 +33,49 @@ class BusinessProcessGUI:
         # Загружаем листы если файл уже выбран
         if self.excel_path.get() and Path(self.excel_path.get()).exists():
             self.load_sheet_names()
-        
+    
+    def load_config(self) -> Dict[str, Any]:
+        """Загрузка конфигурации из файла"""
+        if self.config_file.exists():
+            try:
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"Ошибка загрузки конфигурации: {e}")
+        return {}
+    
+    def save_config(self):
+        """Сохранение конфигурации в файл"""
+        try:
+            config = {
+                'excel_path': self.excel_path.get(),
+                'sheet_name': self.sheet_name.get(),
+                'output_base': self.output_base.get(),
+                'output_directory': self.output_directory.get(),
+                
+                # Сохраняем состояния форматов
+                'bp_md': self.bp_formats['md'].get(),
+                'bp_html_mermaid': self.bp_formats['html_mermaid'].get(),
+                'bp_html_interactive': self.bp_formats['html_interactive'].get(),
+                'cld_mermaid_auto': self.bp_formats['cld_mermaid_auto'].get(),
+                'cld_interactive_auto': self.bp_formats['cld_interactive_auto'].get(),
+                'cld_mermaid_manual': self.cld_formats['cld_mermaid_manual'].get(),
+                'cld_interactive_manual': self.cld_formats['cld_interactive_manual'].get(),
+                
+                'subgroup_column': self.subgroup_column.get(),
+                'show_detailed': self.show_detailed.get(),
+                'critical_min_inputs': self.critical_min_inputs.get(),
+                'critical_min_reuse': self.critical_min_reuse.get(),
+                'no_grouping': self.no_grouping.get(),
+                'cld_sheet_name': self.cld_sheet_name.get(),
+                'show_cld_operations': self.show_cld_operations.get(),
+                'cld_influence_signs': self.cld_influence_signs.get()
+            }
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Ошибка сохранения конфигурации: {e}")
+    
     def _init_variables(self):
         """Инициализация переменных интерфейса"""
         # Основные переменные
@@ -38,15 +83,15 @@ class BusinessProcessGUI:
         self.sheet_name = tk.StringVar(value=self.config.get('sheet_name', ''))
         self.sheet_names = []
         self.output_base = tk.StringVar(value=self.config.get('output_base', 'business_process_diagram'))
-        self.output_directory = tk.StringVar(value=self.config.get('output_directory', ''))  # НОВАЯ ПЕРЕМЕННАЯ
+        self.output_directory = tk.StringVar(value=self.config.get('output_directory', ''))
         
         # Переменные для мультивыбора форматов - БП + авто-CLD
         self.bp_formats = {
             'md': tk.BooleanVar(value=self.config.get('bp_md', False)),
             'html_mermaid': tk.BooleanVar(value=self.config.get('bp_html_mermaid', True)),
             'html_interactive': tk.BooleanVar(value=self.config.get('bp_html_interactive', False)),
-            'cld_mermaid_auto': tk.BooleanVar(value=self.config.get('cld_mermaid_auto', False)),  # CLD авто из БП
-            'cld_interactive_auto': tk.BooleanVar(value=self.config.get('cld_interactive_auto', False))  # CLD авто из БП
+            'cld_mermaid_auto': tk.BooleanVar(value=self.config.get('cld_mermaid_auto', False)),
+            'cld_interactive_auto': tk.BooleanVar(value=self.config.get('cld_interactive_auto', False))
         }
         
         # Переменные для CLD вкладки (только ручной режим)
@@ -72,48 +117,6 @@ class BusinessProcessGUI:
         self.cld_sheet_combobox = None
         self.notebook = None
         
-    def load_config(self) -> Dict[str, Any]:
-        """Загрузка конфигурации из файла"""
-        if self.config_file.exists():
-            try:
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except Exception as e:
-                print(f"Ошибка загрузки конфигурации: {e}")
-        return {}
-    
-    def save_config(self):
-        """Сохранение конфигурации в файл"""
-        try:
-            config = {
-                'excel_path': self.excel_path.get(),
-                'sheet_name': self.sheet_name.get(),
-                'output_base': self.output_base.get(),
-                'output_directory': self.output_directory.get(),  # СОХРАНЯЕМ ПУТЬ
-                
-                # Сохраняем состояния форматов
-                'bp_md': self.bp_formats['md'].get(),
-                'bp_html_mermaid': self.bp_formats['html_mermaid'].get(),
-                'bp_html_interactive': self.bp_formats['html_interactive'].get(),
-                'cld_mermaid_auto': self.bp_formats['cld_mermaid_auto'].get(),
-                'cld_interactive_auto': self.bp_formats['cld_interactive_auto'].get(),
-                'cld_mermaid_manual': self.cld_formats['cld_mermaid_manual'].get(),
-                'cld_interactive_manual': self.cld_formats['cld_interactive_manual'].get(),
-                
-                'subgroup_column': self.subgroup_column.get(),
-                'show_detailed': self.show_detailed.get(),
-                'critical_min_inputs': self.critical_min_inputs.get(),
-                'critical_min_reuse': self.critical_min_reuse.get(),
-                'no_grouping': self.no_grouping.get(),
-                'cld_sheet_name': self.cld_sheet_name.get(),
-                'show_cld_operations': self.show_cld_operations.get(),
-                'cld_influence_signs': self.cld_influence_signs.get()
-            }
-            with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(config, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"Ошибка сохранения конфигурации: {e}")
-    
     def load_sheet_names(self):
         """Загрузка списка листов из выбранного файла Excel"""
         try:
@@ -433,7 +436,7 @@ class BusinessProcessGUI:
         button_frame.columnconfigure(2, weight=1)
         button_frame.columnconfigure(3, weight=1)
         
-        # Кнопки с правильными цветами
+        # Основные кнопки в первой строке
         generate_btn = tk.Button(button_frame, text="🎯 Сгенерировать диаграммы", 
                                command=self.generate_diagrams,
                                bg="#007cba", fg="white",
@@ -441,25 +444,26 @@ class BusinessProcessGUI:
                                relief=tk.RAISED, bd=2)
         generate_btn.grid(row=0, column=0, sticky=tk.EW, padx=(0, 5))
         
-        save_btn = tk.Button(button_frame, text="💾 Сохранить настройки", 
-                           command=self.save_config,
-                           bg="#28a745", fg="white",
-                           font=('Arial', 9),
-                           relief=tk.RAISED, bd=1)
-        save_btn.grid(row=0, column=1, sticky=tk.EW, padx=2)
+        # НОВАЯ КНОПКА: Экспорт реестров
+        export_btn = tk.Button(button_frame, text="📊 Экспорт реестров в Excel", 
+                              command=self.export_registries,
+                              bg="#28a745", fg="white",
+                              font=('Arial', 9, 'bold'),
+                              relief=tk.RAISED, bd=1)
+        export_btn.grid(row=0, column=1, sticky=tk.EW, padx=2)
         
-        reset_btn = tk.Button(button_frame, text="🔄 Сбросить настройки", 
-                            command=self.reset_config,
-                            bg="#ffc107", fg="black",
-                            font=('Arial', 9),
-                            relief=tk.RAISED, bd=1)
-        reset_btn.grid(row=0, column=2, sticky=tk.EW, padx=2)
+        save_btn = tk.Button(button_frame, text="💾 Сохранить настройки", 
+                       command=self.save_config,
+                       bg="#6c757d", fg="white",
+                       font=('Arial', 9),
+                       relief=tk.RAISED, bd=1)
+        save_btn.grid(row=0, column=2, sticky=tk.EW, padx=2)
         
         exit_btn = tk.Button(button_frame, text="❌ Выход", 
-                           command=self.root.quit,
-                           bg="#dc3545", fg="white",
-                           font=('Arial', 9),
-                           relief=tk.RAISED, bd=1)
+                       command=self.root.quit,
+                       bg="#dc3545", fg="white",
+                       font=('Arial', 9),
+                       relief=tk.RAISED, bd=1)
         exit_btn.grid(row=0, column=3, sticky=tk.EW, padx=(5, 0))
     
     def browse_output_directory(self):
@@ -531,7 +535,6 @@ class BusinessProcessGUI:
             total_count = len(selected_formats)
             active_tab = self.notebook.index(self.notebook.select())
             
-            # ИЗМЕНЕНИЕ: Создаем output_directory как Path
             output_dir = Path(self.output_directory.get()) if self.output_directory.get() else Path(".")
             output_dir.mkdir(parents=True, exist_ok=True)
             
@@ -562,10 +565,11 @@ class BusinessProcessGUI:
                         cld_sheet_name=cld_sheet_to_use,
                         show_cld_operations=self.show_cld_operations.get(),
                         cld_influence_signs=self.cld_influence_signs.get(),
-                        output_directory=output_dir  # ИЗМЕНЕНИЕ: передаем Path
+                        output_directory=output_dir
                     )
                     
-                    success = run_with_gui(excel_path, sheet_to_use, choices, self.output_base.get())
+                    # ИСПОЛЬЗУЕМ ДВИЖОК НАПРЯМУЮ вместо run_with_gui
+                    success = self._run_generation(excel_path, sheet_to_use, choices, self.output_base.get())
                     if success:
                         success_count += 1
                     
@@ -586,6 +590,102 @@ class BusinessProcessGUI:
             messagebox.showerror("Ошибка", f"Произошла ошибка при создании диаграмм:\n{str(e)}")
         finally:
             self.root.update_idletasks()
+
+    def _run_generation(self, excel_path: Path, sheet_name: str, choices: Choices, output_base: str) -> bool:
+        """Запуск генерации с использованием движка"""
+        try:
+            # Определяем тип процесса
+            is_cld = choices.output_format in ["cld_mermaid", "cld_interactive"]
+            
+            # Загрузка данных в движок
+            if is_cld and choices.cld_source_type == "auto":
+                if not self.engine.load_business_processes(excel_path, sheet_name, choices):
+                    return False
+            elif not is_cld:
+                if not self.engine.load_business_processes(excel_path, sheet_name, choices):
+                    return False
+            
+            # Анализ данных
+            if is_cld:
+                if not self.engine.load_causal_analysis(excel_path, choices):
+                    return False
+            else:
+                if not self.engine.analyze_business_processes(choices):
+                    return False
+            
+            # Экспорт диаграммы
+            output_files = self.engine.export_diagram(choices, output_base, [], choices.output_directory)
+            
+            if not output_files:
+                return False
+            
+            # Автоматическое открытие основного файла в браузере
+            main_file = self._get_main_file_to_open(output_files, choices)
+            if main_file:
+                self._open_in_browser(main_file)
+            
+            return True
+            
+        except Exception as e:
+            print(f"Ошибка генерации: {e}")
+            return False
+
+    def _get_main_file_to_open(self, output_files, choices):
+        """Определяет какой файл открывать в браузере"""
+        if not output_files:
+            return None
+        
+        # Для интерактивных форматов открываем интерактивный файл
+        if choices.output_format in ["html_interactive", "cld_interactive"]:
+            return output_files[0]
+        
+        # Для остальных форматов ищем основной файл (без суффиксов _vis, _cld)
+        main_files = [f for f in output_files if f.stem and not f.stem.endswith(('_vis', '_cld'))]
+        
+        if main_files:
+            return main_files[0]
+        
+        return output_files[0]
+
+    def _open_in_browser(self, output_file):
+        """Автоматическое открытие в браузере"""
+        try:
+            if output_file and output_file.exists():
+                import webbrowser
+                webbrowser.open(f'file://{output_file.absolute()}')
+                print(f"Диаграмма открыта в браузере: {output_file}")
+        except Exception as e:
+            print(f"Не удалось открыть в браузере: {e}")
+
+    def export_registries(self):
+        """Экспорт реестров в Excel"""
+        if not self.engine.operations:
+            messagebox.showwarning("Внимание", "Сначала загрузите бизнес-процессы, сгенерировав диаграмму")
+            return
+            
+        try:
+            output_dir = Path(self.output_directory.get()) if self.output_directory.get() else Path(".")
+            output_base = self.output_base.get()
+            
+            # Получаем доступные колонки (нужно добавить сохранение исходных данных)
+            available_columns = []
+            # В будущем можно добавить сохранение исходного DataFrame в движке
+            
+            output_file = self.engine.export_registries(output_base, available_columns, output_dir)
+            
+            if output_file and output_file.exists():
+                messagebox.showinfo("Успех", 
+                    f"Реестры успешно экспортированы!\n\n"
+                    f"Файл: {output_file.name}\n\n"
+                    f"📋 Содержание:\n"
+                    f"• Реестр операций (для переиспользования)\n"
+                    f"• Реестр входов/выходов (для категоризации)\n"
+                    f"• Реестр CLD (для дополнения связей)")
+            else:
+                messagebox.showerror("Ошибка", "Не удалось экспортировать реестры")
+                
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Ошибка при экспорте реестров:\n{str(e)}")
 
     # Остальные методы остаются без изменений
     def on_sheet_selected(self, event):

@@ -81,7 +81,7 @@ def _extract_operation_name(row: pd.Series, fallback_index: int) -> str:
     return str(operation_value).strip()
 
 def _merge_operation_data(op_name: str, rows: List[dict], available_columns: list, choices: Choices) -> Optional[Operation]:
-    """Объединение данных операции из нескольких строк"""
+    """Объединение данных операции из нескольких строк с сохранением всех полей"""
     try:
         merged_inputs = []
         merged_outputs = []
@@ -110,7 +110,17 @@ def _merge_operation_data(op_name: str, rows: List[dict], available_columns: lis
         # Формируем текст узла
         node_text = _build_node_text(op_name, merged_detailed, choices)
         
-        return Operation(
+        additional_data = {}
+        for col in available_columns:
+            if col not in ['Операция', 'Входы', 'Выход', 'Группа', 'Владелец', 'Подробное описание операции']:
+                values = []
+                for row in rows:
+                    if col in row and pd.notna(row[col]) and str(row[col]).strip():
+                        values.append(str(row[col]).strip())
+                if values:
+                    additional_data[col] = '; '.join(set(values))
+        
+        operation = Operation(
             name=op_name,
             outputs=merged_outputs,
             inputs=merged_inputs,
@@ -120,6 +130,11 @@ def _merge_operation_data(op_name: str, rows: List[dict], available_columns: lis
             owner=merged_owner,
             detailed=merged_detailed,
         )
+        
+        # Добавляем дополнительные данные
+        operation.additional_data = additional_data
+        
+        return operation
         
     except Exception as e:
         print(f"Ошибка обработки операции '{op_name}': {e}")

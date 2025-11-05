@@ -202,3 +202,35 @@ class BusinessProcessEngine:
         self.operations = None
         self.analysis_data = None
         self.causal_analysis = None
+
+    # В core_engine.py добавляем метод
+
+    def export_registries(self, output_base: str, available_columns: list = None, output_dir: Path = None) -> Path:
+        """Экспорт полного комплекта реестров в Excel"""
+        try:
+            if output_dir is None:
+                output_dir = Path(".")
+                
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Проверяем наличие данных
+            if not self.operations or not self.analysis_data:
+                logger.error("Нет данных для экспорта реестров")
+                return None
+                
+            from exporters.excel_exporter import export_complete_registry
+            
+            output_file = export_complete_registry(
+                operations=self.operations,
+                analysis_data=self.analysis_data,
+                causal_analysis=self.causal_analysis,
+                original_columns=available_columns or [],
+                output_base=output_base,
+                output_dir=output_dir
+            )
+            
+            return output_file
+            
+        except Exception as e:
+            logger.error(f"Ошибка экспорта реестров: {e}")
+            return None

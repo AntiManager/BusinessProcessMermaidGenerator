@@ -48,6 +48,9 @@ class Operation:
     def __post_init__(self):
         """Валидация данных после инициализации"""
         self._validate()
+        # Инициализируем дополнительные данные
+        if not hasattr(self, 'additional_data'):
+            self.additional_data = {}
     
     def _validate(self):
         """Валидация данных операции"""
