@@ -213,17 +213,23 @@ class BusinessProcessEngine:
                 
             output_dir.mkdir(parents=True, exist_ok=True)
             
-            # Проверяем наличие данных
+            # Проверяем наличие данных бизнес-процессов
             if not self.operations or not self.analysis_data:
-                logger.error("Нет данных для экспорта реестров")
+                logger.error("Нет данных бизнес-процессов для экспорта реестров")
                 return None
+                
+            # ВСЕГДА выполняем автоматический CLD анализ из бизнес-процессов для экспорта реестров
+            if not self.causal_analysis:
+                logger.info("Выполняем автоматический CLD анализ из бизнес-процессов для экспорта реестров")
+                from cld_analyzer import analyze_causal_links_from_operations
+                self.causal_analysis = analyze_causal_links_from_operations(self.operations)
                 
             from exporters.excel_exporter import export_complete_registry
             
             output_file = export_complete_registry(
                 operations=self.operations,
                 analysis_data=self.analysis_data,
-                causal_analysis=self.causal_analysis,
+                causal_analysis=self.causal_analysis,  # Теперь всегда передаем CLD анализ
                 original_columns=available_columns or [],
                 output_base=output_base,
                 output_dir=output_dir
