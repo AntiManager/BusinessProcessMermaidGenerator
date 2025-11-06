@@ -215,11 +215,14 @@ class BusinessProcessGUI:
         # Кнопки управления
         self.create_control_buttons(main_container)
         
+        # НОВОЕ: Кнопки генерации примеров
+        self.create_example_generator_buttons(main_container)
+        
         # Статус бар
         self.status_var = tk.StringVar(value="Готов к работе. Выберите файл Excel.")
         status_bar = ttk.Label(main_container, textvariable=self.status_var, 
                               relief=tk.SUNKEN, padding=(3, 3))
-        status_bar.grid(row=4, column=0, sticky=tk.EW, pady=(5, 0))
+        status_bar.grid(row=5, column=0, sticky=tk.EW, pady=(5, 0))
     
     def create_bp_tab(self) -> ttk.Frame:
         """Создание вкладки бизнес-процессов с авто-CLD"""
@@ -465,6 +468,26 @@ class BusinessProcessGUI:
                        font=('Arial', 9),
                        relief=tk.RAISED, bd=1)
         exit_btn.grid(row=0, column=3, sticky=tk.EW, padx=(5, 0))
+    
+    def create_example_generator_buttons(self, parent):
+        """Создание кнопок для генерации примеров файлов"""
+        example_frame = ttk.LabelFrame(parent, text="🎯 Генерация примеров файлов", padding="5")
+        example_frame.grid(row=4, column=0, sticky=tk.EW, pady=(0, 8))
+        example_frame.columnconfigure(0, weight=1)
+        
+        button_frame = ttk.Frame(example_frame)
+        button_frame.grid(row=0, column=0, sticky=tk.EW, pady=2)
+        
+        # Конфигурация колонок для равномерного распределения
+        button_frame.columnconfigure(0, weight=1)
+        button_frame.columnconfigure(1, weight=1)
+        
+        # Кнопки генерации примеров
+        ttk.Button(button_frame, text="📋 Создать пример БП-файла", 
+                   command=self.generate_bp_example).grid(row=0, column=0, sticky=tk.EW, padx=(0, 5))
+        
+        ttk.Button(button_frame, text="🔄 Создать пример CLD-файла", 
+                   command=self.generate_cld_example).grid(row=0, column=1, sticky=tk.EW, padx=(5, 0))
     
     def browse_output_directory(self):
         """Выбор папки для сохранения отчетов"""
@@ -758,6 +781,66 @@ class BusinessProcessGUI:
         except Exception as e:
             print(f"Ошибка экспорта CLD реестра: {e}")
             return None
+
+    def generate_bp_example(self):
+        """Генерация примера файла бизнес-процессов с расширенными метриками"""
+        try:
+            from example_generator import create_business_process_example
+            
+            output_dir = Path(self.output_directory.get()) if self.output_directory.get() else Path(".")
+            output_file = output_dir / "пример_бизнес_процессов_с_метриками.xlsx"
+            
+            create_business_process_example(output_file)
+            
+            if output_file.exists():
+                messagebox.showinfo("Успех", 
+                    f"✅ ПРИМЕР ФАЙЛА БИЗНЕС-ПРОЦЕССОВ СОЗДАН!\n\n"
+                    f"📁 Файл: {output_file.name}\n\n"
+                    f"📊 СОДЕРЖАНИЕ:\n"
+                    f"• 25 операций интернет-магазина\n"
+                    f"• Метрики потока создания ценности:\n"
+                    f"  - Время операций\n"
+                    f"  - Количество циклов\n" 
+                    f"  - Периоды выполнения\n"
+                    f"  - Количество персонала\n"
+                    f"  - Стоимость работы\n\n"
+                    f"🎯 ИСПОЛЬЗУЙТЕ ДЛЯ:\n"
+                    f"• Тестирования функционала\n"
+                    f"• Изучения формата данных\n"
+                    f"• Анализа эффективности процессов")
+            else:
+                messagebox.showerror("Ошибка", "Не удалось создать файл примера")
+                
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Ошибка при создании примера БП:\n{str(e)}")
+
+    def generate_cld_example(self):
+        """Генерация примера файла CLD"""
+        try:
+            from example_generator import create_cld_example
+            
+            output_dir = Path(self.output_directory.get()) if self.output_directory.get() else Path(".")
+            output_file = output_dir / "пример_cld_диаграммы.xlsx"
+            
+            create_cld_example(output_file)
+            
+            if output_file.exists():
+                messagebox.showinfo("Успех", 
+                    f"✅ ПРИМЕР ФАЙЛА CLD СОЗДАН!\n\n"
+                    f"📁 Файл: {output_file.name}\n\n"
+                    f"📊 СОДЕРЖАНИЕ:\n"
+                    f"• 32 причинно-следственные связи\n"
+                    f"• Примеры циклов обратной связи\n"
+                    f"• Переменные системной динамики\n\n"
+                    f"🎯 ИСПОЛЬЗУЙТЕ ДЛЯ:\n"
+                    f"• Тестирования CLD функционала\n"
+                    f"• Изучения формата CLD данных\n"
+                    f"• Анализа системных динамик")
+            else:
+                messagebox.showerror("Ошибка", "Не удалось создать файл примера")
+                
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Ошибка при создании примера CLD:\n{str(e)}")
 
     # Остальные методы остаются без изменений
     def on_sheet_selected(self, event):

@@ -16,7 +16,8 @@ class Choices:
     cld_sheet_name: str = ""
     show_cld_operations: bool = True
     cld_influence_signs: bool = True
-    output_directory: Path = field(default_factory=lambda: Path("."))  # ИЗМЕНЕНИЕ: Path вместо str
+    output_directory: Path = field(default_factory=lambda: Path("."))
+    generate_example: bool = False  # НОВОЕ: флаг для генерации примеров
     
     def __post_init__(self):
         """Валидация настроек"""
@@ -44,6 +45,12 @@ class Operation:
     group: str = ""
     owner: str = ""
     detailed: str = ""
+    # НОВЫЕ ПОЛЯ ДЛЯ АНАЛИТИКИ ПОТОКА СОЗДАНИЯ ЦЕННОСТИ
+    time_minutes: float = 0.0
+    cycle_count: int = 1
+    cycle_period: str = "день"
+    personnel_count: int = 1
+    personnel_cost_per_hour: float = 0.0
     
     def __post_init__(self):
         """Валидация данных после инициализации"""
@@ -51,6 +58,49 @@ class Operation:
         # Инициализируем дополнительные данные
         if not hasattr(self, 'additional_data'):
             self.additional_data = {}
+    
+    def _validate(self):
+        """Валидация данных операции"""
+        if not self.name or not self.name.strip():
+            raise ValueError("Имя операции не может быть пустым")
+        
+        # Очистка данных
+        self.name = self.name.strip()
+        self.outputs = [out.strip() for out in self.outputs if out and str(out).strip()]
+        self.inputs = [inp.strip() for inp in self.inputs if inp and str(inp).strip()]
+        
+        if self.subgroup:
+            self.subgroup = str(self.subgroup).strip()
+            if self.subgroup.lower() == 'nan':
+                self.subgroup = None
+        
+        # Валидация новых полей
+        valid_periods = ["смена", "день", "неделя", "месяц", "квартал", "год"]
+        if self.cycle_period not in valid_periods:
+            raise ValueError(f"Некорректный период цикла: {self.cycle_period}")
+        
+        if self.time_minutes < 0:
+            raise ValueError("Время операции не может быть отрицательным")
+        
+        if self.cycle_count < 0:
+            raise ValueError("Количество циклов не может быть отрицательным")
+        
+        if self.personnel_count < 0:
+            raise ValueError("Количество персонала не может быть отрицательным")
+        
+        if self.personnel_cost_per_hour < 0:
+            raise ValueError("Стоимость часа работы не может быть отрицательной")
+
+    @property
+    def total_time_per_period(self) -> float:
+        """Общее время операции за период"""
+        return self.time_minutes * self.cycle_count
+
+    @property
+    def total_personnel_cost_per_period(self) -> float:
+        """Общая стоимость персонала за период"""
+        hours = self.total_time_per_period / 60
+        return hours * self.personnel_cost_per_hour * self.personnel_count
     
     def _validate(self):
         """Валидация данных операции"""
