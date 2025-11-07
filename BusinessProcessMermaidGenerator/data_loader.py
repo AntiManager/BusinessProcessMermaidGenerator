@@ -81,7 +81,7 @@ def _extract_operation_name(row: pd.Series, fallback_index: int) -> str:
     return str(operation_value).strip()
 
 def _merge_operation_data(op_name: str, rows: List[dict], available_columns: list, choices: Choices) -> Optional[Operation]:
-    """Объединение данных операции из нескольких строк"""
+    """Объединение данных операции из нескольких строк с сохранением всех полей"""
     try:
         merged_inputs = []
         merged_outputs = []
@@ -89,6 +89,13 @@ def _merge_operation_data(op_name: str, rows: List[dict], available_columns: lis
         merged_group = ""
         merged_owner = ""
         merged_detailed = ""
+        
+        # НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ МЕТРИК
+        merged_time_minutes = 0.0
+        merged_cycle_count = 1
+        merged_cycle_period = "день"
+        merged_personnel_count = 1
+        merged_personnel_cost_per_hour = 0.0
         
         for row in rows:
             # Объединяем входы
@@ -102,6 +109,13 @@ def _merge_operation_data(op_name: str, rows: List[dict], available_columns: lis
             merged_group = _extract_group(row, merged_group)
             merged_owner = _extract_owner(row, merged_owner)
             merged_detailed = _extract_detailed(row, merged_detailed)
+            
+            # НОВОЕ: Извлекаем метрики потока создания ценности
+            merged_time_minutes = _extract_time_minutes(row, merged_time_minutes)
+            merged_cycle_count = _extract_cycle_count(row, merged_cycle_count)
+            merged_cycle_period = _extract_cycle_period(row, merged_cycle_period)
+            merged_personnel_count = _extract_personnel_count(row, merged_personnel_count)
+            merged_personnel_cost_per_hour = _extract_personnel_cost(row, merged_personnel_cost_per_hour)
         
         # Убираем дубликаты и пустые значения
         merged_inputs = list(set(filter(None, merged_inputs)))
@@ -110,7 +124,19 @@ def _merge_operation_data(op_name: str, rows: List[dict], available_columns: lis
         # Формируем текст узла
         node_text = _build_node_text(op_name, merged_detailed, choices)
         
-        return Operation(
+        additional_data = {}
+        for col in available_columns:
+            if col not in ['Операция', 'Входы', 'Выход', 'Группа', 'Владелец', 'Подробное описание операции',
+                          'Время операции (мин)', 'Количество циклов', 'Период цикла', 
+                          'Количество персонала', 'Стоимость часа работы (руб)']:
+                values = []
+                for row in rows:
+                    if col in row and pd.notna(row[col]) and str(row[col]).strip():
+                        values.append(str(row[col]).strip())
+                if values:
+                    additional_data[col] = '; '.join(set(values))
+        
+        operation = Operation(
             name=op_name,
             outputs=merged_outputs,
             inputs=merged_inputs,
@@ -119,7 +145,18 @@ def _merge_operation_data(op_name: str, rows: List[dict], available_columns: lis
             group=merged_group,
             owner=merged_owner,
             detailed=merged_detailed,
+            # НОВЫЕ ПОЛЯ
+            time_minutes=merged_time_minutes,
+            cycle_count=merged_cycle_count,
+            cycle_period=merged_cycle_period,
+            personnel_count=merged_personnel_count,
+            personnel_cost_per_hour=merged_personnel_cost_per_hour
         )
+        
+        # Добавляем дополнительные данные
+        operation.additional_data = additional_data
+        
+        return operation
         
     except Exception as e:
         print(f"Ошибка обработки операции '{op_name}': {e}")
@@ -174,6 +211,57 @@ def _extract_detailed(row: dict, current_value: str) -> str:
     if "Подробное описание операции" in row and pd.notna(row.get("Подробное описание операции")):
         new_detailed = clean_text(row.get("Подробное описание операции"))
         return merge_strings(current_value, new_detailed, "; ")
+    return current_value
+
+# НОВЫЕ ФУНКЦИИ ДЛЯ ИЗВЛЕЧЕНИЯ МЕТРИК
+
+def _extract_time_minutes(row: dict, current_value: float) -> float:
+    """Извлечение времени операции в минутах"""
+    if "Время операции (мин)" in row and pd.notna(row.get("Время операции (мин)")):
+        try:
+            time_value = float(row["Время операции (мин)"])
+            return max(time_value, current_value)  # Берем максимальное значение
+        except (ValueError, TypeError):
+            return current_value
+    return current_value
+
+def _extract_cycle_count(row: dict, current_value: int) -> int:
+    """Извлечение количества циклов"""
+    if "Количество циклов" in row and pd.notna(row.get("Количество циклов")):
+        try:
+            count_value = int(row["Количество циклов"])
+            return max(count_value, current_value)
+        except (ValueError, TypeError):
+            return current_value
+    return current_value
+
+def _extract_cycle_period(row: dict, current_value: str) -> str:
+    """Извлечение периода цикла"""
+    valid_periods = ["смена", "день", "неделя", "месяц", "квартал", "год"]
+    if "Период цикла" in row and pd.notna(row.get("Период цикла")):
+        period_value = str(row["Период цикла"]).strip().lower()
+        if period_value in valid_periods:
+            return period_value
+    return current_value
+
+def _extract_personnel_count(row: dict, current_value: int) -> int:
+    """Извлечение количества персонала"""
+    if "Количество персонала" in row and pd.notna(row.get("Количество персонала")):
+        try:
+            count_value = int(row["Количество персонала"])
+            return max(count_value, current_value)
+        except (ValueError, TypeError):
+            return current_value
+    return current_value
+
+def _extract_personnel_cost(row: dict, current_value: float) -> float:
+    """Извлечение стоимости часа работы"""
+    if "Стоимость часа работы (руб)" in row and pd.notna(row.get("Стоимость часа работы (руб)")):
+        try:
+            cost_value = float(row["Стоимость часа работы (руб)"])
+            return max(cost_value, current_value)
+        except (ValueError, TypeError):
+            return current_value
     return current_value
 
 def _build_node_text(op_name: str, detailed: str, choices: Choices) -> str:

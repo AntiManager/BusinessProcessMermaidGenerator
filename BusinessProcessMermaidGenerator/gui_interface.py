@@ -1,28 +1,30 @@
 """
 Графический интерфейс для генератора диаграмм бизнес-процессов
-РЕФАКТОРИНГ: Устранение циклических импортов
+РАЗДЕЛЕНИЕ: БП-диаграммы и CLD из разных источников
 """
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import pandas as pd
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List
 from models import Choices
 from config import CRITICAL_MIN_INPUTS, CRITICAL_MIN_REUSE
-# ИСПРАВЛЕННЫЙ ИМПОРТ - без цикла!
-from core_api import run_with_gui
+from core_engine import BusinessProcessEngine
 
 class BusinessProcessGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Генератор диаграмм бизнес-процессов v3.0")
-        self.root.geometry("950x750")
-        self.root.minsize(850, 700)
+        self.root.title("Генератор диаграмм бизнес-процессов v3.5")
+        self.root.geometry("900x800")  # Увеличили высоту для новой кнопки
+        self.root.minsize(850, 650)
         
         # Загрузка конфигурации
         self.config_file = Path("bp_config.json")
         self.config = self.load_config()
+        
+        # Инициализация движка
+        self.engine = BusinessProcessEngine()
         
         # Инициализация переменных интерфейса
         self._init_variables()
@@ -31,34 +33,7 @@ class BusinessProcessGUI:
         # Загружаем листы если файл уже выбран
         if self.excel_path.get() and Path(self.excel_path.get()).exists():
             self.load_sheet_names()
-        
-    def _init_variables(self):
-        """Инициализация переменных интерфейса"""
-        # Основные переменные
-        self.excel_path = tk.StringVar(value=self.config.get('excel_path', ''))
-        self.sheet_name = tk.StringVar(value=self.config.get('sheet_name', ''))
-        self.sheet_names = []
-        self.output_base = tk.StringVar(value=self.config.get('output_base', 'business_process_diagram'))
-        self.output_format = tk.StringVar(value=self.config.get('output_format', 'html_mermaid'))
-        self.subgroup_column = tk.StringVar(value=self.config.get('subgroup_column', ''))
-        self.show_detailed = tk.BooleanVar(value=self.config.get('show_detailed', False))
-        self.critical_min_inputs = tk.IntVar(value=self.config.get('critical_min_inputs', CRITICAL_MIN_INPUTS))
-        self.critical_min_reuse = tk.IntVar(value=self.config.get('critical_min_reuse', CRITICAL_MIN_REUSE))
-        self.no_grouping = tk.BooleanVar(value=self.config.get('no_grouping', True))
-        
-        # CLD переменные
-        self.cld_source_type = tk.StringVar(value=self.config.get('cld_source_type', 'auto'))
-        self.cld_sheet_name = tk.StringVar(value=self.config.get('cld_sheet_name', ''))
-        self.show_cld_operations = tk.BooleanVar(value=self.config.get('show_cld_operations', True))
-        self.cld_influence_signs = tk.BooleanVar(value=self.config.get('cld_influence_signs', True))
-        
-        # UI элементы
-        self.sheet_combobox = None
-        self.cld_sheet_combobox = None
-        self.cld_frame = None
-        self.group_combo = None
-        self.status_var = tk.StringVar(value="Готов к работе. Выберите файл Excel.")
-        
+    
     def load_config(self) -> Dict[str, Any]:
         """Загрузка конфигурации из файла"""
         if self.config_file.exists():
@@ -76,13 +51,22 @@ class BusinessProcessGUI:
                 'excel_path': self.excel_path.get(),
                 'sheet_name': self.sheet_name.get(),
                 'output_base': self.output_base.get(),
-                'output_format': self.output_format.get(),
+                'output_directory': self.output_directory.get(),
+                
+                # Сохраняем состояния форматов
+                'bp_md': self.bp_formats['md'].get(),
+                'bp_html_mermaid': self.bp_formats['html_mermaid'].get(),
+                'bp_html_interactive': self.bp_formats['html_interactive'].get(),
+                'cld_mermaid_auto': self.bp_formats['cld_mermaid_auto'].get(),
+                'cld_interactive_auto': self.bp_formats['cld_interactive_auto'].get(),
+                'cld_mermaid_manual': self.cld_formats['cld_mermaid_manual'].get(),
+                'cld_interactive_manual': self.cld_formats['cld_interactive_manual'].get(),
+                
                 'subgroup_column': self.subgroup_column.get(),
                 'show_detailed': self.show_detailed.get(),
                 'critical_min_inputs': self.critical_min_inputs.get(),
                 'critical_min_reuse': self.critical_min_reuse.get(),
                 'no_grouping': self.no_grouping.get(),
-                'cld_source_type': self.cld_source_type.get(),
                 'cld_sheet_name': self.cld_sheet_name.get(),
                 'show_cld_operations': self.show_cld_operations.get(),
                 'cld_influence_signs': self.cld_influence_signs.get()
@@ -92,6 +76,47 @@ class BusinessProcessGUI:
         except Exception as e:
             print(f"Ошибка сохранения конфигурации: {e}")
     
+    def _init_variables(self):
+        """Инициализация переменных интерфейса"""
+        # Основные переменные
+        self.excel_path = tk.StringVar(value=self.config.get('excel_path', ''))
+        self.sheet_name = tk.StringVar(value=self.config.get('sheet_name', ''))
+        self.sheet_names = []
+        self.output_base = tk.StringVar(value=self.config.get('output_base', 'business_process_diagram'))
+        self.output_directory = tk.StringVar(value=self.config.get('output_directory', ''))
+        
+        # Переменные для мультивыбора форматов - БП + авто-CLD
+        self.bp_formats = {
+            'md': tk.BooleanVar(value=self.config.get('bp_md', False)),
+            'html_mermaid': tk.BooleanVar(value=self.config.get('bp_html_mermaid', True)),
+            'html_interactive': tk.BooleanVar(value=self.config.get('bp_html_interactive', False)),
+            'cld_mermaid_auto': tk.BooleanVar(value=self.config.get('cld_mermaid_auto', False)),
+            'cld_interactive_auto': tk.BooleanVar(value=self.config.get('cld_interactive_auto', False))
+        }
+        
+        # Переменные для CLD вкладки (только ручной режим)
+        self.cld_formats = {
+            'cld_mermaid_manual': tk.BooleanVar(value=self.config.get('cld_mermaid_manual', False)),
+            'cld_interactive_manual': tk.BooleanVar(value=self.config.get('cld_interactive_manual', True))
+        }
+        
+        # Общие настройки для БП
+        self.subgroup_column = tk.StringVar(value=self.config.get('subgroup_column', ''))
+        self.show_detailed = tk.BooleanVar(value=self.config.get('show_detailed', False))
+        self.critical_min_inputs = tk.IntVar(value=self.config.get('critical_min_inputs', CRITICAL_MIN_INPUTS))
+        self.critical_min_reuse = tk.IntVar(value=self.config.get('critical_min_reuse', CRITICAL_MIN_REUSE))
+        self.no_grouping = tk.BooleanVar(value=self.config.get('no_grouping', True))
+        
+        # CLD переменные (только для ручного режима)
+        self.cld_sheet_name = tk.StringVar(value=self.config.get('cld_sheet_name', ''))
+        self.show_cld_operations = tk.BooleanVar(value=self.config.get('show_cld_operations', True))
+        self.cld_influence_signs = tk.BooleanVar(value=self.config.get('cld_influence_signs', True))
+        
+        # UI элементы
+        self.sheet_combobox = None
+        self.cld_sheet_combobox = None
+        self.notebook = None
+        
     def load_sheet_names(self):
         """Загрузка списка листов из выбранного файла Excel"""
         try:
@@ -99,17 +124,18 @@ class BusinessProcessGUI:
             self.sheet_names = excel_file.sheet_names
             
             # Обновляем combobox основного листа
-            self.sheet_combobox['values'] = self.sheet_names
+            if self.sheet_combobox:
+                self.sheet_combobox['values'] = self.sheet_names
             
             # Обновляем combobox для CLD листа
-            self.cld_sheet_combobox['values'] = self.sheet_names
+            if self.cld_sheet_combobox:
+                self.cld_sheet_combobox['values'] = self.sheet_names
             
             # Устанавливаем значение по умолчанию для основного листа
-            if self.sheet_names:
+            if self.sheet_names and self.sheet_combobox:
                 if self.sheet_name.get() in self.sheet_names:
                     self.sheet_combobox.set(self.sheet_name.get())
                 else:
-                    # Ищем лист с типичными названиями
                     default_sheets = ['БП_1', 'Sheet1', 'Лист1', 'Data']
                     for sheet in default_sheets:
                         if sheet in self.sheet_names:
@@ -117,9 +143,13 @@ class BusinessProcessGUI:
                             self.sheet_name.set(sheet)
                             break
                     else:
-                        # Берем первый лист
                         self.sheet_combobox.set(self.sheet_names[0])
                         self.sheet_name.set(self.sheet_names[0])
+            
+            # Автоматически устанавливаем папку для отчетов в папку с Excel-файлом, если не задана
+            if not self.output_directory.get():
+                excel_dir = Path(self.excel_path.get()).parent
+                self.output_directory.set(str(excel_dir))
             
             self.status_var.set(f"Загружено {len(self.sheet_names)} листов")
             
@@ -128,271 +158,381 @@ class BusinessProcessGUI:
             messagebox.showerror("Ошибка", f"Не удалось прочитать файл Excel:\n{e}")
     
     def create_widgets(self):
-        """Создание элементов интерфейса"""
-        # Основной фрейм с прокруткой
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        """Создание компактного интерфейса с вкладками"""
+        # Основной контейнер
+        main_container = ttk.Frame(self.root)
+        main_container.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
         
-        # Настройки колонок и строк для растягивания
+        # Настройки растягивания
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
+        main_container.columnconfigure(0, weight=1)
+        main_container.rowconfigure(1, weight=1)
         
         # Заголовок
-        title_label = ttk.Label(main_frame, text="Генератор диаграмм бизнес-процессов v3.0", 
-                               font=('Arial', 16, 'bold'))
-        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
+        title_label = ttk.Label(main_container, 
+                               text="Генератор диаграмм бизнес-процессов v3.5", 
+                               font=('Arial', 14, 'bold'))
+        title_label.grid(row=0, column=0, sticky=tk.W, pady=(0, 8))
         
-        row = 1
+        # Область с вкладками
+        self.notebook = ttk.Notebook(main_container)
+        self.notebook.grid(row=1, column=0, sticky=tk.NSEW, pady=(0, 8))
+        
+        # Создаем вкладки
+        self.bp_frame = self.create_bp_tab()
+        self.cld_frame = self.create_cld_tab()
+        
+        self.notebook.add(self.bp_frame, text="📊 Бизнес-процессы")
+        self.notebook.add(self.cld_frame, text="🔄 Causal Loop Diagrams")
+        
+        # НОВЫЙ БЛОК: Выбор папки для отчетов
+        output_dir_frame = ttk.LabelFrame(main_container, text="📁 Папка для сохранения отчетов", padding="5")
+        output_dir_frame.grid(row=2, column=0, sticky=tk.EW, pady=(0, 8))
+        output_dir_frame.columnconfigure(0, weight=1)
+        
+        dir_selection_frame = ttk.Frame(output_dir_frame)
+        dir_selection_frame.grid(row=0, column=0, sticky=tk.EW, pady=2)
+        dir_selection_frame.columnconfigure(0, weight=1)
+        
+        # Поле для отображения пути и кнопка выбора
+        dir_entry = ttk.Entry(dir_selection_frame, textvariable=self.output_directory)
+        dir_entry.grid(row=0, column=0, sticky=tk.EW, padx=(0, 5))
+        
+        ttk.Button(dir_selection_frame, text="Обзор...", 
+                  command=self.browse_output_directory).grid(row=0, column=1)
+        
+        ttk.Button(dir_selection_frame, text="Сбросить", 
+                  command=self.reset_output_directory).grid(row=0, column=2, padx=(5, 0))
+        
+        # Подсказка
+        hint_label = ttk.Label(output_dir_frame, 
+                              text="По умолчанию: папка с Excel-файлом. Нажмите 'Обзор...' для выбора другой папки.",
+                              font=('Arial', 8), 
+                              foreground='#666666')
+        hint_label.grid(row=1, column=0, sticky=tk.W, pady=(2, 0))
+        
+        # Кнопки управления
+        self.create_control_buttons(main_container)
+        
+        # НОВОЕ: Кнопки генерации примеров
+        self.create_example_generator_buttons(main_container)
+        
+        # Статус бар
+        self.status_var = tk.StringVar(value="Готов к работе. Выберите файл Excel.")
+        status_bar = ttk.Label(main_container, textvariable=self.status_var, 
+                              relief=tk.SUNKEN, padding=(3, 3))
+        status_bar.grid(row=5, column=0, sticky=tk.EW, pady=(5, 0))
+    
+    def create_bp_tab(self) -> ttk.Frame:
+        """Создание вкладки бизнес-процессов с авто-CLD"""
+        frame = ttk.Frame(self.notebook, padding="5")
+        
+        # Настройки grid для компактности
+        for i in range(10):
+            frame.rowconfigure(i, weight=0)
+        frame.columnconfigure(1, weight=1)
+        
+        row = 0
         
         # Выбор файла Excel
-        ttk.Label(main_frame, text="Файл Excel:*", font=('Arial', 10, 'bold')).grid(row=row, column=0, sticky=tk.W, pady=2)
-        file_frame = ttk.Frame(main_frame)
-        file_frame.grid(row=row, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=2)
+        ttk.Label(frame, text="Файл Excel:*", font=('Arial', 9, 'bold')).grid(
+            row=row, column=0, sticky=tk.W, pady=1)
+        file_frame = ttk.Frame(frame)
+        file_frame.grid(row=row, column=1, columnspan=2, sticky=tk.EW, pady=1)
         file_frame.columnconfigure(0, weight=1)
         
         file_entry = ttk.Entry(file_frame, textvariable=self.excel_path)
-        file_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
+        file_entry.grid(row=0, column=0, sticky=tk.EW, padx=(0, 5))
         ttk.Button(file_frame, text="Обзор...", command=self.browse_file).grid(row=0, column=1)
         row += 1
         
-        # Выбор листа
-        ttk.Label(main_frame, text="Лист:*", font=('Arial', 10, 'bold')).grid(row=row, column=0, sticky=tk.W, pady=2)
-        sheet_frame = ttk.Frame(main_frame)
-        sheet_frame.grid(row=row, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=2)
+        # Выбор листа с бизнес-процессами
+        ttk.Label(frame, text="Лист с БП:*", font=('Arial', 9, 'bold')).grid(
+            row=row, column=0, sticky=tk.W, pady=1)
+        sheet_frame = ttk.Frame(frame)
+        sheet_frame.grid(row=row, column=1, columnspan=2, sticky=tk.EW, pady=1)
         
-        self.sheet_combobox = ttk.Combobox(sheet_frame, textvariable=self.sheet_name, state="readonly", width=30)
-        self.sheet_combobox.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        self.sheet_combobox = ttk.Combobox(sheet_frame, textvariable=self.sheet_name, 
+                                          state="readonly")
+        self.sheet_combobox.grid(row=0, column=0, sticky=tk.EW)
         self.sheet_combobox.bind('<<ComboboxSelected>>', self.on_sheet_selected)
         
-        ttk.Button(sheet_frame, text="Обновить", command=self.load_sheet_names, width=10).grid(row=0, column=1, padx=(5, 0))
+        ttk.Button(sheet_frame, text="Обновить", command=self.load_sheet_names, 
+                  width=8).grid(row=0, column=1, padx=(5, 0))
         sheet_frame.columnconfigure(0, weight=1)
         row += 1
         
         # Имя выходного файла
-        ttk.Label(main_frame, text="Имя выходного файла:").grid(row=row, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(main_frame, textvariable=self.output_base, width=30).grid(row=row, column=1, sticky=tk.W, pady=2)
+        ttk.Label(frame, text="Имя файла:").grid(
+            row=row, column=0, sticky=tk.W, pady=1)
+        ttk.Entry(frame, textvariable=self.output_base).grid(
+            row=row, column=1, sticky=tk.EW, pady=1)
         row += 1
         
         # Разделитель
-        ttk.Separator(main_frame, orient='horizontal').grid(row=row, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=15)
+        ttk.Separator(frame, orient='horizontal').grid(
+            row=row, column=0, columnspan=3, sticky=tk.EW, pady=8)
         row += 1
         
-        # Формат вывода
-        ttk.Label(main_frame, text="Формат вывода:", font=('Arial', 10, 'bold')).grid(row=row, column=0, sticky=tk.W, pady=2)
-        format_frame = ttk.Frame(main_frame)
-        format_frame.grid(row=row, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=2)
-
-        formats = [
-            ("📄 Markdown с Mermaid", "md"),
-            ("🌐 HTML с Mermaid (рекомендуется)", "html_mermaid"),
-            ("🎮 Интерактивный HTML", "html_interactive"),
-            ("🔄 Causal Loop Diagram (Mermaid)", "cld_mermaid"),
-            ("🔄 Causal Loop Diagram (Interactive)", "cld_interactive")
+        # Форматы вывода (БП + авто-CLD)
+        ttk.Label(frame, text="Форматы БП:", font=('Arial', 9, 'bold')).grid(
+            row=row, column=0, sticky=tk.W, pady=1)
+        format_frame = ttk.Frame(frame)
+        format_frame.grid(row=row, column=1, columnspan=2, sticky=tk.EW, pady=1)
+        
+        bp_formats = [
+            ("📄 Markdown + интерактивная", "md"),
+            ("🌐 HTML + интерактивная", "html_mermaid"),
+            ("🎮 Только интерактивная", "html_interactive")
         ]
-
-        for i, (text, value) in enumerate(formats):
-            rb = ttk.Radiobutton(format_frame, text=text, variable=self.output_format, 
-                                value=value, command=self.on_format_change)
-            rb.grid(row=i//3, column=i%3, sticky=tk.W, padx=(0, 20), pady=2)
-        row += 2  # Уменьшил с 3 до 2 тк меньше форматов
         
-        # Секция настроек CLD (изначально скрыта)
-        self.cld_frame = ttk.LabelFrame(main_frame, text="Настройки Causal Loop Diagram", padding="10")
-        self.cld_frame.grid(row=row, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
-        self.cld_frame.grid_remove()  # Скрываем по умолчанию
+        for i, (text, key) in enumerate(bp_formats):
+            cb = ttk.Checkbutton(format_frame, text=text, variable=self.bp_formats[key])
+            cb.grid(row=0, column=i, sticky=tk.W, padx=(0, 10))
+        row += 1
         
-        # Источник данных CLD
-        ttk.Label(self.cld_frame, text="Источник данных:").grid(row=0, column=0, sticky=tk.W, pady=2)
-        source_frame = ttk.Frame(self.cld_frame)
-        source_frame.grid(row=0, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=2)
+        # CLD форматы (авто из БП)
+        ttk.Label(frame, text="CLD (авто из БП):", font=('Arial', 9, 'bold')).grid(
+            row=row, column=0, sticky=tk.W, pady=1)
+        cld_format_frame = ttk.Frame(frame)
+        cld_format_frame.grid(row=row, column=1, columnspan=2, sticky=tk.W, pady=1)
         
-        ttk.Radiobutton(source_frame, text="Авто из бизнес-процессов", 
-                       variable=self.cld_source_type, value="auto", 
-                       command=self.on_cld_source_change).grid(row=0, column=0, sticky=tk.W)
-        ttk.Radiobutton(source_frame, text="Из отдельного листа", 
-                       variable=self.cld_source_type, value="manual",
-                       command=self.on_cld_source_change).grid(row=0, column=1, sticky=tk.W, padx=(20, 0))
+        cld_formats = [
+            ("🔄 CLD Mermaid + интерактивная", "cld_mermaid_auto"),
+            ("🎮 Только интерактивный CLD", "cld_interactive_auto")
+        ]
         
-        # Выбор листа для CLD
-        ttk.Label(self.cld_frame, text="Лист CLD данных:").grid(row=1, column=0, sticky=tk.W, pady=2)
-        self.cld_sheet_combobox = ttk.Combobox(self.cld_frame, textvariable=self.cld_sheet_name, 
-                                              state="readonly", width=30)
-        self.cld_sheet_combobox.grid(row=1, column=1, sticky=tk.W, pady=2)
-        self.cld_sheet_combobox.bind('<<ComboboxSelected>>', self.on_cld_sheet_selected)
-        
-        # Настройки отображения CLD
-        ttk.Checkbutton(self.cld_frame, text="Показывать операции на связях",
-                       variable=self.show_cld_operations).grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=2)
-        ttk.Checkbutton(self.cld_frame, text="Показывать знаки влияния (+/-)",
-                       variable=self.cld_influence_signs).grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=2)
-        
+        for i, (text, key) in enumerate(cld_formats):
+            cb = ttk.Checkbutton(cld_format_frame, text=text, variable=self.bp_formats[key])
+            cb.grid(row=0, column=i, sticky=tk.W, padx=(0, 15))
         row += 1
         
         # Группировка
-        ttk.Label(main_frame, text="Группировка операций:").grid(row=row, column=0, sticky=tk.W, pady=2)
-        group_frame = ttk.Frame(main_frame)
-        group_frame.grid(row=row, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=2)
+        ttk.Label(frame, text="Группировка:").grid(
+            row=row, column=0, sticky=tk.W, pady=2)
+        group_frame = ttk.Frame(frame)
+        group_frame.grid(row=row, column=1, columnspan=2, sticky=tk.W, pady=2)
         
         ttk.Radiobutton(group_frame, text="Без группировки", variable=self.no_grouping,
                        value=True, command=self.on_grouping_change).grid(row=0, column=0, sticky=tk.W)
         ttk.Radiobutton(group_frame, text="Группировать по:", variable=self.no_grouping,
-                       value=False, command=self.on_grouping_change).grid(row=0, column=1, sticky=tk.W)
+                       value=False, command=self.on_grouping_change).grid(row=0, column=1, sticky=tk.W, padx=(10, 0))
         
         self.group_combo = ttk.Combobox(group_frame, textvariable=self.subgroup_column, 
-                                       values=['Группа', 'Владелец'], state='readonly', width=15)
+                                       values=['Группа', 'Владелец'], state='readonly', width=10)
         self.group_combo.grid(row=0, column=2, sticky=tk.W, padx=(5, 0))
         row += 1
         
-        # Подробное описание
-        ttk.Checkbutton(main_frame, text="Показывать подробное описание в узлах", 
-                       variable=self.show_detailed).grid(row=row, column=0, columnspan=2, sticky=tk.W, pady=2)
+        # Настройки
+        settings_frame = ttk.Frame(frame)
+        settings_frame.grid(row=row, column=0, columnspan=3, sticky=tk.EW, pady=2)
+        
+        ttk.Checkbutton(settings_frame, text="Подробное описание", 
+                       variable=self.show_detailed).grid(row=0, column=0, sticky=tk.W)
+        
+        ttk.Label(settings_frame, text="Мин. входов:").grid(row=0, column=1, sticky=tk.W, padx=(15, 0))
+        ttk.Spinbox(settings_frame, from_=1, to=20, textvariable=self.critical_min_inputs,
+                   width=4).grid(row=0, column=2, sticky=tk.W, padx=(5, 0))
+        
+        ttk.Label(settings_frame, text="Исп. выходов:").grid(row=0, column=3, sticky=tk.W, padx=(10, 0))
+        ttk.Spinbox(settings_frame, from_=1, to=20, textvariable=self.critical_min_reuse,
+                   width=4).grid(row=0, column=4, sticky=tk.W, padx=(5, 0))
+        
+        settings_frame.columnconfigure(0, weight=1)
+        
+        return frame
+    
+    def create_cld_tab(self) -> ttk.Frame:
+        """Создание вкладки CLD (только ручной режим из отдельного листа)"""
+        frame = ttk.Frame(self.notebook, padding="5")
+        
+        # Настройки grid для компактности
+        for i in range(8):
+            frame.rowconfigure(i, weight=0)
+        frame.columnconfigure(1, weight=1)
+        
+        row = 0
+        
+        # Выбор файла Excel
+        ttk.Label(frame, text="Файл Excel:*", font=('Arial', 9, 'bold')).grid(
+            row=row, column=0, sticky=tk.W, pady=1)
+        file_frame = ttk.Frame(frame)
+        file_frame.grid(row=row, column=1, columnspan=2, sticky=tk.EW, pady=1)
+        file_frame.columnconfigure(0, weight=1)
+        
+        file_entry = ttk.Entry(file_frame, textvariable=self.excel_path)
+        file_entry.grid(row=0, column=0, sticky=tk.EW, padx=(0, 5))
+        ttk.Button(file_frame, text="Обзор...", command=self.browse_file).grid(row=0, column=1)
         row += 1
         
-        # Пороговые значения
-        ttk.Label(main_frame, text="Пороги критических операций:").grid(row=row, column=0, sticky=tk.W, pady=2)
-        threshold_frame = ttk.Frame(main_frame)
-        threshold_frame.grid(row=row, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=2)
+        # Выбор листа с CLD данными
+        ttk.Label(frame, text="Лист с CLD:*", font=('Arial', 9, 'bold')).grid(
+            row=row, column=0, sticky=tk.W, pady=1)
+        cld_sheet_frame = ttk.Frame(frame)
+        cld_sheet_frame.grid(row=row, column=1, columnspan=2, sticky=tk.EW, pady=1)
         
-        ttk.Label(threshold_frame, text="Мин. входов:").grid(row=0, column=0, sticky=tk.W)
-        ttk.Spinbox(threshold_frame, from_=1, to=20, textvariable=self.critical_min_inputs,
-                   width=5).grid(row=0, column=1, sticky=tk.W, padx=(5, 15))
-        
-        ttk.Label(threshold_frame, text="Мин. использований выхода:").grid(row=0, column=2, sticky=tk.W)
-        ttk.Spinbox(threshold_frame, from_=1, to=20, textvariable=self.critical_min_reuse,
-                   width=5).grid(row=0, column=3, sticky=tk.W, padx=(5, 0))
+        self.cld_sheet_combobox = ttk.Combobox(cld_sheet_frame, textvariable=self.cld_sheet_name, 
+                                              state="readonly")
+        self.cld_sheet_combobox.grid(row=0, column=0, sticky=tk.EW)
+        self.cld_sheet_combobox.bind('<<ComboboxSelected>>', self.on_cld_sheet_selected)
+        cld_sheet_frame.columnconfigure(0, weight=1)
         row += 1
         
-        # Кнопки управления
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=row, column=0, columnspan=3, pady=25)
+        # Имя выходного файла
+        ttk.Label(frame, text="Имя файла:").grid(
+            row=row, column=0, sticky=tk.W, pady=1)
+        ttk.Entry(frame, textvariable=self.output_base).grid(
+            row=row, column=1, sticky=tk.EW, pady=1)
+        row += 1
         
-        ttk.Button(button_frame, text="🎯 Сгенерировать диаграмму", 
-                  command=self.generate_diagram, style='Accent.TButton', width=20).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(button_frame, text="💾 Сохранить настройки", 
-                  command=self.save_config, width=15).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(button_frame, text="🔄 Сбросить настройки", 
-                  command=self.reset_config, width=15).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(button_frame, text="❌ Выход", 
-                  command=self.root.quit, width=10).pack(side=tk.LEFT)
+        # Разделитель
+        ttk.Separator(frame, orient='horizontal').grid(
+            row=row, column=0, columnspan=3, sticky=tk.EW, pady=8)
+        row += 1
         
-        # Статус бар
-        self.status_var = tk.StringVar(value="Готов к работе. Выберите файл Excel.")
-        status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN, padding=(5, 5))
-        status_bar.grid(row=row+1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(15, 0))
+        # Форматы вывода CLD (только ручной режим)
+        ttk.Label(frame, text="Форматы CLD:", font=('Arial', 9, 'bold')).grid(
+            row=row, column=0, sticky=tk.W, pady=1)
+        format_frame = ttk.Frame(frame)
+        format_frame.grid(row=row, column=1, columnspan=2, sticky=tk.W, pady=1)
         
-        # Информация о возможностях
-        info_frame = ttk.LabelFrame(main_frame, text="Возможности форматов", padding="10")
-        info_frame.grid(row=row+2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(15, 0))
-        info_frame.columnconfigure(0, weight=1)
-
-        features = [
-            "📄 Markdown - для документации и GitHub",
-            "🌐 HTML с Mermaid - панорамирование и масштабирование", 
-            "🎮 Интерактивный HTML - динамическая навигация",
-            "🔄 Causal Loop - системная динамика и причинно-следственные связи"
+        formats = [
+            ("🔄 CLD Mermaid + интерактивная", "cld_mermaid_manual"),
+            ("🎮 Только интерактивный CLD", "cld_interactive_manual")
         ]
-
-        for i, feature in enumerate(features):
-            ttk.Label(info_frame, text=feature).grid(row=i, column=0, sticky=tk.W, pady=2)
         
-        # Инициализация состояния
-        self.on_format_change()
-        self.on_grouping_change()
-        self.on_cld_source_change()
+        for i, (text, key) in enumerate(formats):
+            cb = ttk.Checkbutton(format_frame, text=text, variable=self.cld_formats[key])
+            cb.grid(row=0, column=i, sticky=tk.W, padx=(0, 15))
+        row += 1
+        
+        # Настройки CLD
+        ttk.Label(frame, text="Настройки:").grid(
+            row=row, column=0, sticky=tk.W, pady=2)
+        settings_frame = ttk.Frame(frame)
+        settings_frame.grid(row=row, column=1, columnspan=2, sticky=tk.W, pady=2)
+        
+        ttk.Checkbutton(settings_frame, text="Операции на связях",
+                       variable=self.show_cld_operations).grid(row=0, column=0, sticky=tk.W)
+        ttk.Checkbutton(settings_frame, text="Знаки влияния",
+                       variable=self.cld_influence_signs).grid(row=0, column=1, sticky=tk.W, padx=(15, 0))
+        
+        # Информация о формате данных
+        info_frame = ttk.Frame(frame)
+        info_frame.grid(row=row+1, column=0, columnspan=3, sticky=tk.EW, pady=5)
+        info_label = ttk.Label(info_frame, 
+                              text="📋 Формат CLD данных: колонки 'Источник', 'Цель', 'Знак влияния'",
+                              font=('Arial', 8), foreground='#666666')
+        info_label.pack()
+        
+        return frame
     
-    def on_sheet_selected(self, event):
-        """Обработка выбора листа"""
-        self.sheet_name.set(self.sheet_combobox.get())
+    def create_control_buttons(self, parent):
+        """Создание компактных кнопок управления"""
+        button_frame = ttk.Frame(parent)
+        button_frame.grid(row=3, column=0, sticky=tk.EW, pady=8)
+        
+        # Конфигурация колонок для равномерного распределения
+        button_frame.columnconfigure(0, weight=1)
+        button_frame.columnconfigure(1, weight=1)
+        button_frame.columnconfigure(2, weight=1)
+        button_frame.columnconfigure(3, weight=1)
+        
+        # Основные кнопки в первой строке
+        generate_btn = tk.Button(button_frame, text="🎯 Сгенерировать диаграммы", 
+                               command=self.generate_diagrams,
+                               bg="#007cba", fg="white",
+                               font=('Arial', 10, 'bold'),
+                               relief=tk.RAISED, bd=2)
+        generate_btn.grid(row=0, column=0, sticky=tk.EW, padx=(0, 5))
+        
+        # НОВАЯ КНОПКА: Экспорт реестров
+        export_btn = tk.Button(button_frame, text="📊 Экспорт реестров в Excel", 
+                              command=self.export_registries,
+                              bg="#28a745", fg="white",
+                              font=('Arial', 9, 'bold'),
+                              relief=tk.RAISED, bd=1)
+        export_btn.grid(row=0, column=1, sticky=tk.EW, padx=2)
+        
+        save_btn = tk.Button(button_frame, text="💾 Сохранить настройки", 
+                       command=self.save_config,
+                       bg="#6c757d", fg="white",
+                       font=('Arial', 9),
+                       relief=tk.RAISED, bd=1)
+        save_btn.grid(row=0, column=2, sticky=tk.EW, padx=2)
+        
+        exit_btn = tk.Button(button_frame, text="❌ Выход", 
+                       command=self.root.quit,
+                       bg="#dc3545", fg="white",
+                       font=('Arial', 9),
+                       relief=tk.RAISED, bd=1)
+        exit_btn.grid(row=0, column=3, sticky=tk.EW, padx=(5, 0))
     
-    def on_cld_sheet_selected(self, event):
-        """Обработка выбора листа для CLD"""
-        self.cld_sheet_name.set(self.cld_sheet_combobox.get())
+    def create_example_generator_buttons(self, parent):
+        """Создание кнопок для генерации примеров файлов"""
+        example_frame = ttk.LabelFrame(parent, text="🎯 Генерация примеров файлов", padding="5")
+        example_frame.grid(row=4, column=0, sticky=tk.EW, pady=(0, 8))
+        example_frame.columnconfigure(0, weight=1)
+        
+        button_frame = ttk.Frame(example_frame)
+        button_frame.grid(row=0, column=0, sticky=tk.EW, pady=2)
+        
+        # Конфигурация колонок для равномерного распределения
+        button_frame.columnconfigure(0, weight=1)
+        button_frame.columnconfigure(1, weight=1)
+        
+        # Кнопки генерации примеров
+        ttk.Button(button_frame, text="📋 Создать пример БП-файла", 
+                   command=self.generate_bp_example).grid(row=0, column=0, sticky=tk.EW, padx=(0, 5))
+        
+        ttk.Button(button_frame, text="🔄 Создать пример CLD-файла", 
+                   command=self.generate_cld_example).grid(row=0, column=1, sticky=tk.EW, padx=(5, 0))
     
-    def browse_file(self):
-        """Выбор файла через диалоговое окно"""
-        filename = filedialog.askopenfilename(
-            title="Выберите файл Excel",
-            filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")]
+    def browse_output_directory(self):
+        """Выбор папки для сохранения отчетов"""
+        directory = filedialog.askdirectory(
+            title="Выберите папку для сохранения отчетов"
         )
-        if filename:
-            self.excel_path.set(filename)
-            # Загружаем список листов
-            self.load_sheet_names()
-            # Предложить имя выходного файла на основе имени Excel файла
-            if not self.output_base.get() or self.output_base.get() == 'business_process_diagram':
-                excel_stem = Path(filename).stem
-                self.output_base.set(excel_stem + '_diagram')
+        if directory:
+            self.output_directory.set(directory)
             self.save_config()
     
-    def on_format_change(self):
-        """Обработка изменения формата вывода"""
-        current_format = self.output_format.get()
-        
-        # Показываем/скрываем секцию CLD настроек
-        if current_format in ["cld_mermaid", "cld_interactive"]:
-            self.cld_frame.grid()  # Показываем
+    def reset_output_directory(self):
+        """Сброс папки для отчетов к папке с Excel-файлом"""
+        if self.excel_path.get():
+            excel_dir = Path(self.excel_path.get()).parent
+            self.output_directory.set(str(excel_dir))
         else:
-            self.cld_frame.grid_remove()  # Скрываем
-        
-        # Ограничения для других форматов
-        if current_format == "html_interactive":
-            self.no_grouping.set(True)
-            self.show_detailed.set(False)
-            self.on_grouping_change()
-        elif current_format == "html_svg":
-            self.no_grouping.set(True)
-            self.show_detailed.set(True)
-            self.on_grouping_change()
+            self.output_directory.set("")
+        self.save_config()
     
-    def on_cld_source_change(self):
-        """Обработчик изменения источника CLD данных"""
-        if self.cld_source_type.get() == "manual":
-            self.cld_sheet_combobox.config(state="readonly")
-        else:
-            self.cld_sheet_combobox.config(state="disabled")
-    
-    def on_grouping_change(self):
-        """Обработка изменения группировки"""
-        if self.no_grouping.get():
-            self.group_combo.config(state='disabled')
-        else:
-            self.group_combo.config(state='readonly')
-    
-    def reset_config(self):
-        """Сброс настроек к значениям по умолчанию"""
-        self.excel_path.set('')
-        self.sheet_name.set('')
-        self.sheet_combobox.set('')
-        self.sheet_combobox['values'] = []
-        self.cld_sheet_combobox.set('')
-        self.cld_sheet_combobox['values'] = []
-        self.output_base.set('business_process_diagram')
-        self.output_format.set('html_svg')
-        self.subgroup_column.set('')
-        self.show_detailed.set(False)
-        self.critical_min_inputs.set(CRITICAL_MIN_INPUTS)
-        self.critical_min_reuse.set(CRITICAL_MIN_REUSE)
-        self.no_grouping.set(True)
+    def get_selected_formats(self) -> List[str]:
+        """Получение списка выбранных форматов с учетом типа источника"""
+        formats = []
+        active_tab = self.notebook.index(self.notebook.select())
         
-        # Сброс настроек CLD
-        self.cld_source_type.set('auto')
-        self.cld_sheet_name.set('')
-        self.show_cld_operations.set(True)
-        self.cld_influence_signs.set(True)
+        if active_tab == 0:  # Вкладка БП
+            for fmt, var in self.bp_formats.items():
+                if var.get():
+                    # Для авто-CLD форматов добавляем суффикс
+                    if fmt in ['cld_mermaid_auto', 'cld_interactive_auto']:
+                        # Убираем суффикс '_auto' для совместимости с core_api
+                        formats.append(fmt.replace('_auto', ''))
+                    else:
+                        formats.append(fmt)
+        else:  # Вкладка CLD (ручной режим)
+            for fmt, var in self.cld_formats.items():
+                if var.get():
+                    # Для ручных CLD форматов добавляем суффикс
+                    if fmt in ['cld_mermaid_manual', 'cld_interactive_manual']:
+                        # Убираем суффикс '_manual' для совместимости с core_api
+                        formats.append(fmt.replace('_manual', ''))
         
-        if self.config_file.exists():
-            self.config_file.unlink()
-        
-        self.on_format_change()
-        self.on_grouping_change()
-        self.on_cld_source_change()
-        self.status_var.set("Настройки сброшены. Выберите файл Excel.")
-        messagebox.showinfo("Сброс настроек", "Настройки сброшены к значениям по умолчанию")
+        return formats
     
-    def generate_diagram(self):
-        """Генерация диаграммы - обновленный метод для использования нового API"""
-        # Валидация выполняется в core_api.py, здесь только базовая проверка
+    def generate_diagrams(self):
+        """Генерация диаграмм для выбранных форматов"""
         if not self.excel_path.get():
             messagebox.showerror("Ошибка", "Выберите файл Excel")
             return
@@ -402,55 +542,383 @@ class BusinessProcessGUI:
             messagebox.showerror("Ошибка", f"Файл не существует: {excel_path}")
             return
         
+        selected_formats = self.get_selected_formats()
+        if not selected_formats:
+            messagebox.showwarning("Внимание", "Выберите хотя бы один формат вывода")
+            return
+        
         try:
-            self.status_var.set("Генерация диаграммы...")
+            self.status_var.set("Генерация диаграмм...")
             self.root.update_idletasks()
-            
-            # Создание объекта Choices из настроек GUI
-            choices = Choices(
-                subgroup_column=self.subgroup_column.get() if not self.no_grouping.get() else None,
-                show_detailed=self.show_detailed.get(),
-                critical_min_inputs=self.critical_min_inputs.get(),
-                critical_min_reuse=self.critical_min_reuse.get(),
-                no_grouping=self.no_grouping.get(),
-                output_format=self.output_format.get(),
-                cld_source_type=self.cld_source_type.get(),
-                cld_sheet_name=self.cld_sheet_name.get(),
-                show_cld_operations=self.show_cld_operations.get(),
-                cld_influence_signs=self.cld_influence_signs.get()
-            )
             
             # Сохранение конфигурации
             self.save_config()
             
-            # Запуск генерации через новый core_api.py
-            success = run_with_gui(excel_path, self.sheet_name.get(), choices, self.output_base.get())
+            success_count = 0
+            total_count = len(selected_formats)
+            active_tab = self.notebook.index(self.notebook.select())
             
-            if success:
-                self.status_var.set("Диаграмма успешно создана и открыта в браузере!")
+            output_dir = Path(self.output_directory.get()) if self.output_directory.get() else Path(".")
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            for output_format in selected_formats:
+                try:
+                    # Определяем параметры в зависимости от вкладки и типа формата
+                    if active_tab == 0:  # Вкладка БП
+                        sheet_to_use = self.sheet_name.get()
+                        cld_source_type = "auto"
+                        cld_sheet_to_use = ""
+                    else:  # Вкладка CLD
+                        sheet_to_use = self.cld_sheet_name.get()
+                        cld_source_type = "manual"
+                        cld_sheet_to_use = self.cld_sheet_name.get()
+                    
+                    if not sheet_to_use:
+                        messagebox.showerror("Ошибка", "Не выбран лист для генерации")
+                        continue
+                    
+                    choices = Choices(
+                        subgroup_column=self.subgroup_column.get() if not self.no_grouping.get() and active_tab == 0 else None,
+                        show_detailed=self.show_detailed.get() if active_tab == 0 else False,
+                        critical_min_inputs=self.critical_min_inputs.get() if active_tab == 0 else 3,
+                        critical_min_reuse=self.critical_min_reuse.get() if active_tab == 0 else 3,
+                        no_grouping=self.no_grouping.get() if active_tab == 0 else True,
+                        output_format=output_format,
+                        cld_source_type=cld_source_type,
+                        cld_sheet_name=cld_sheet_to_use,
+                        show_cld_operations=self.show_cld_operations.get(),
+                        cld_influence_signs=self.cld_influence_signs.get(),
+                        output_directory=output_dir
+                    )
+                    
+                    # ИСПОЛЬЗУЕМ ДВИЖОК НАПРЯМУЮ вместо run_with_gui
+                    success = self._run_generation(excel_path, sheet_to_use, choices, self.output_base.get())
+                    if success:
+                        success_count += 1
+                    
+                except Exception as e:
+                    print(f"Ошибка при генерации формата {output_format}: {e}")
+            
+            if success_count > 0:
+                self.status_var.set(f"Успешно создано {success_count}/{total_count} форматов")
                 messagebox.showinfo("Успех", 
-                    f"Диаграмма успешно создана!\n\n"
-                    f"Основная диаграмма автоматически открывается в браузере.\n\n"
-                    f"Для Markdown и HTML форматов также создана интерактивная версия\n"
-                    f"с суффиксом _vis или _cld.")
+                    f"Диаграммы успешно созданы!\n\n"
+                    f"Успешно сгенерировано: {success_count} из {total_count} форматов\n\n"
+                    f"Основные диаграммы автоматически открываются в браузере.")
             else:
-                self.status_var.set("Ошибка при создании диаграммы")
-                # Сообщение об ошибке будет показано через logging в core_api.py
+                self.status_var.set("Ошибка при создании диаграмм")
                 
         except Exception as e:
             self.status_var.set(f"Ошибка: {str(e)}")
-            messagebox.showerror("Ошибка", f"Произошла ошибка при создании диаграммы:\n{str(e)}")
+            messagebox.showerror("Ошибка", f"Произошла ошибка при создании диаграмм:\n{str(e)}")
         finally:
             self.root.update_idletasks()
+
+    def _run_generation(self, excel_path: Path, sheet_name: str, choices: Choices, output_base: str) -> bool:
+        """Запуск генерации с использованием движка"""
+        try:
+            # Определяем тип процесса
+            is_cld = choices.output_format in ["cld_mermaid", "cld_interactive"]
+            
+            # Загрузка данных в движок
+            if is_cld and choices.cld_source_type == "auto":
+                if not self.engine.load_business_processes(excel_path, sheet_name, choices):
+                    return False
+            elif not is_cld:
+                if not self.engine.load_business_processes(excel_path, sheet_name, choices):
+                    return False
+            
+            # Анализ данных
+            if is_cld:
+                if not self.engine.load_causal_analysis(excel_path, choices):
+                    return False
+            else:
+                if not self.engine.analyze_business_processes(choices):
+                    return False
+            
+            # Экспорт диаграммы
+            output_files = self.engine.export_diagram(choices, output_base, [], choices.output_directory)
+            
+            if not output_files:
+                return False
+            
+            # Автоматическое открытие основного файла в браузере
+            main_file = self._get_main_file_to_open(output_files, choices)
+            if main_file:
+                self._open_in_browser(main_file)
+            
+            return True
+            
+        except Exception as e:
+            print(f"Ошибка генерации: {e}")
+            return False
+
+    def _get_main_file_to_open(self, output_files, choices):
+        """Определяет какой файл открывать в браузере"""
+        if not output_files:
+            return None
+        
+        # Для интерактивных форматов открываем интерактивный файл
+        if choices.output_format in ["html_interactive", "cld_interactive"]:
+            return output_files[0]
+        
+        # Для остальных форматов ищем основной файл (без суффиксов _vis, _cld)
+        main_files = [f for f in output_files if f.stem and not f.stem.endswith(('_vis', '_cld'))]
+        
+        if main_files:
+            return main_files[0]
+        
+        return output_files[0]
+
+    def _open_in_browser(self, output_file):
+        """Автоматическое открытие в браузере"""
+        try:
+            if output_file and output_file.exists():
+                import webbrowser
+                webbrowser.open(f'file://{output_file.absolute()}')
+                print(f"Диаграмма открыта в браузере: {output_file}")
+        except Exception as e:
+            print(f"Не удалось открыть в браузере: {e}")
+
+    def export_registries(self):
+        """Экспорт реестров в Excel с учетом активной вкладки"""
+        try:
+            active_tab = self.notebook.index(self.notebook.select())
+            
+            if active_tab == 0:  # Вкладка бизнес-процессов
+                if not self.engine.operations:
+                    messagebox.showwarning("Внимание", 
+                        "Сначала загрузите бизнес-процессы, сгенерировав диаграмму\n\n"
+                        "Нажмите '🎯 Сгенерировать диаграммы' для загрузки данных")
+                    return
+                    
+                output_dir = Path(self.output_directory.get()) if self.output_directory.get() else Path(".")
+                output_base = self.output_base.get()
+                
+                # Получаем доступные колонки из загруженных данных
+                available_columns = []
+                # Можно добавить логику для получения реальных колонок из исходных данных
+                
+                output_file = self.engine.export_registries(output_base, available_columns, output_dir)
+                
+                if output_file and output_file.exists():
+                    messagebox.showinfo("Успех", 
+                        f"✅ РЕЕСТРЫ БИЗНЕС-ПРОЦЕССОВ УСПЕШНО ЭКСПОРТИРОВАНЫ!\n\n"
+                        f"📁 Файл: {output_file.name}\n\n"
+                        f"📊 СОДЕРЖАНИЕ:\n"
+                        f"• 📋 Реестр операций (готов к переиспользованию)\n"
+                        f"• 🔄 Реестр CLD связей (авто из входов/выходов)\n"
+                        f"• 📈 Реестр входов/выходов (для категоризации)\n"
+                        f"• 📖 Инструкция по использованию")
+                else:
+                    messagebox.showerror("Ошибка", "Не удалось экспортировать реестры")
+                    
+            else:  # Вкладка CLD
+                if not self.engine.causal_analysis:
+                    messagebox.showwarning("Внимание", 
+                        "Сначала загрузите CLD данные, сгенерировав диаграмму\n\n"
+                        "Нажмите '🎯 Сгенерировать диаграммы' для загрузки CLD данных")
+                    return
+                    
+                output_dir = Path(self.output_directory.get()) if self.output_directory.get() else Path(".")
+                output_base = self.output_base.get()
+                
+                # Для CLD вкладки экспортируем только CLD реестр
+                output_file = self._export_cld_registry_only(output_base, output_dir)
+                
+                if output_file and output_file.exists():
+                    messagebox.showinfo("Успех", 
+                        f"✅ РЕЕСТР CLD СВЯЗЕЙ УСПЕШНО ЭКСПОРТИРОВАН!\n\n"
+                        f"📁 Файл: {output_file.name}\n\n"
+                        f"📊 СОДЕРЖАНИЕ:\n"
+                        f"• 🔄 Реестр CLD связей (из ручных данных)\n"
+                        f"• 📖 Инструкция по использованию")
+                else:
+                    messagebox.showerror("Ошибка", "Не удалось экспортировать CLD реестр")
+                    
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Ошибка при экспорте реестров:\n{str(e)}")
+
+    def _export_cld_registry_only(self, output_base: str, output_dir: Path) -> Path:
+        """Экспорт только CLD реестра для ручного режима"""
+        try:
+            if not self.engine.causal_analysis:
+                return None
+                
+            output_file = output_dir / f"{output_base}_cld_реестр.xlsx"
+            
+            import pandas as pd
+            from exporters.excel_exporter import export_cld_registry
+            
+            # Создаем файл и экспортируем только CLD
+            with pd.ExcelWriter(output_file, mode='w', engine='openpyxl') as writer:
+                # Создаем пустой лист чтобы файл был валидным
+                pd.DataFrame([['CLD реестр']]).to_excel(writer, sheet_name='Инфо', index=False)
+            
+            export_cld_registry(self.engine.causal_analysis, output_file)
+            
+            # Добавляем инструкцию
+            with pd.ExcelWriter(output_file, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
+                instructions_data = [
+                    ['🎯 ИНСТРУКЦИЯ: РЕЕСТР CLD СВЯЗЕЙ', ''],
+                    ['', ''],
+                    ['📋 НАЗНАЧЕНИЕ:', 'Использовать как исходный файл для генерации Causal Loop Diagrams'],
+                    ['📊 ИСТОЧНИК ДАННЫХ:', 'Ручной ввод (отдельный лист с CLD данными)'],
+                    ['🔧 ФОРМАТ ДАННЫХ:', 'Колонки: Источник, Цель, Знак влияния'],
+                    ['', ''],
+                    ['🚀 РЕКОМЕНДАЦИИ:', ''],
+                    ['1. Дополняйте связи между переменными', ''],
+                    ['2. Уточняйте знаки влияния (+/-)', ''],
+                    ['3. Добавляйте описания для сложных связей', ''],
+                    ['4. Используйте для анализа системных динамик', '']
+                ]
+                
+                instructions_df = pd.DataFrame(instructions_data, columns=['Элемент', 'Описание'])
+                instructions_df.to_excel(writer, sheet_name='📖Инструкция', index=False)
+            
+            return output_file
+            
+        except Exception as e:
+            print(f"Ошибка экспорта CLD реестра: {e}")
+            return None
+
+    def generate_bp_example(self):
+        """Генерация примера файла бизнес-процессов с расширенными метриками"""
+        try:
+            from example_generator import create_business_process_example
+            
+            output_dir = Path(self.output_directory.get()) if self.output_directory.get() else Path(".")
+            output_file = output_dir / "пример_бизнес_процессов_с_метриками.xlsx"
+            
+            create_business_process_example(output_file)
+            
+            if output_file.exists():
+                messagebox.showinfo("Успех", 
+                    f"✅ ПРИМЕР ФАЙЛА БИЗНЕС-ПРОЦЕССОВ СОЗДАН!\n\n"
+                    f"📁 Файл: {output_file.name}\n\n"
+                    f"📊 СОДЕРЖАНИЕ:\n"
+                    f"• 25 операций интернет-магазина\n"
+                    f"• Метрики потока создания ценности:\n"
+                    f"  - Время операций\n"
+                    f"  - Количество циклов\n" 
+                    f"  - Периоды выполнения\n"
+                    f"  - Количество персонала\n"
+                    f"  - Стоимость работы\n\n"
+                    f"🎯 ИСПОЛЬЗУЙТЕ ДЛЯ:\n"
+                    f"• Тестирования функционала\n"
+                    f"• Изучения формата данных\n"
+                    f"• Анализа эффективности процессов")
+            else:
+                messagebox.showerror("Ошибка", "Не удалось создать файл примера")
+                
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Ошибка при создании примера БП:\n{str(e)}")
+
+    def generate_cld_example(self):
+        """Генерация примера файла CLD"""
+        try:
+            from example_generator import create_cld_example
+            
+            output_dir = Path(self.output_directory.get()) if self.output_directory.get() else Path(".")
+            output_file = output_dir / "пример_cld_диаграммы.xlsx"
+            
+            create_cld_example(output_file)
+            
+            if output_file.exists():
+                messagebox.showinfo("Успех", 
+                    f"✅ ПРИМЕР ФАЙЛА CLD СОЗДАН!\n\n"
+                    f"📁 Файл: {output_file.name}\n\n"
+                    f"📊 СОДЕРЖАНИЕ:\n"
+                    f"• 32 причинно-следственные связи\n"
+                    f"• Примеры циклов обратной связи\n"
+                    f"• Переменные системной динамики\n\n"
+                    f"🎯 ИСПОЛЬЗУЙТЕ ДЛЯ:\n"
+                    f"• Тестирования CLD функционала\n"
+                    f"• Изучения формата CLD данных\n"
+                    f"• Анализа системных динамик")
+            else:
+                messagebox.showerror("Ошибка", "Не удалось создать файл примера")
+                
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Ошибка при создании примера CLD:\n{str(e)}")
+
+    # Остальные методы остаются без изменений
+    def on_sheet_selected(self, event):
+        self.sheet_name.set(self.sheet_combobox.get())
+    
+    def on_cld_sheet_selected(self, event):
+        self.cld_sheet_name.set(self.cld_sheet_combobox.get())
+    
+    def browse_file(self):
+        filename = filedialog.askopenfilename(
+            title="Выберите файл Excel",
+            filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")]
+        )
+        if filename:
+            self.excel_path.set(filename)
+            self.load_sheet_names()
+            if not self.output_base.get() or self.output_base.get() == 'business_process_diagram':
+                excel_stem = Path(filename).stem
+                self.output_base.set(excel_stem + '_diagram')
+            
+            # Автоматически устанавливаем папку для отчетов в папку с Excel-файлом, если не задана
+            if not self.output_directory.get():
+                excel_dir = Path(filename).parent
+                self.output_directory.set(str(excel_dir))
+            
+            self.save_config()
+    
+    def on_grouping_change(self):
+        if self.no_grouping.get():
+            if self.group_combo:
+                self.group_combo.config(state='disabled')
+        else:
+            if self.group_combo:
+                self.group_combo.config(state='readonly')
+    
+    def reset_config(self):
+        """Сброс настроек к значениям по умолчанию"""
+        self.excel_path.set('')
+        self.sheet_name.set('')
+        if self.sheet_combobox:
+            self.sheet_combobox.set('')
+            self.sheet_combobox['values'] = []
+        if self.cld_sheet_combobox:
+            self.cld_sheet_combobox.set('')
+            self.cld_sheet_combobox['values'] = []
+        self.output_base.set('business_process_diagram')
+        self.output_directory.set('')  # СБРАСЫВАЕМ ПУТЬ
+        
+        # Сброс форматов
+        self.bp_formats['md'].set(False)
+        self.bp_formats['html_mermaid'].set(True)
+        self.bp_formats['html_interactive'].set(False)
+        self.bp_formats['cld_mermaid_auto'].set(False)
+        self.bp_formats['cld_interactive_auto'].set(False)
+        self.cld_formats['cld_mermaid_manual'].set(False)
+        self.cld_formats['cld_interactive_manual'].set(True)
+        
+        self.subgroup_column.set('')
+        self.show_detailed.set(False)
+        self.critical_min_inputs.set(CRITICAL_MIN_INPUTS)
+        self.critical_min_reuse.set(CRITICAL_MIN_REUSE)
+        self.no_grouping.set(True)
+        
+        # Сброс настроек CLD
+        self.cld_sheet_name.set('')
+        self.show_cld_operations.set(True)
+        self.cld_influence_signs.set(True)
+        
+        if self.config_file.exists():
+            self.config_file.unlink()
+        
+        self.on_grouping_change()
+        self.status_var.set("Настройки сброшены. Выберите файл Excel.")
+        messagebox.showinfo("Сброс настроек", "Настройки сброшены к значениям по умолчанию")
 
 def run_gui():
     """Запуск графического интерфейса"""
     root = tk.Tk()
-    
-    # Стиль для акцентных кнопок
-    style = ttk.Style()
-    style.configure('Accent.TButton', foreground='white', background='#007cba')
-    
     app = BusinessProcessGUI(root)
     root.mainloop()
 

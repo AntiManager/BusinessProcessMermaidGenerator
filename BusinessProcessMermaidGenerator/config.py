@@ -20,6 +20,15 @@ CRITICAL_MIN_REUSE: int = 3
 REQ_COLUMNS: set = {"Операция", "Входы", "Выход"}
 CLD_REQUIRED_COLUMNS: set = {"Источник", "Цель", "Знак влияния"}
 
+# НОВЫЕ КОЛОНКИ ДЛЯ АНАЛИТИКИ ПОТОКА ЦЕННОСТИ
+VALUE_STREAM_COLUMNS: set = {
+    "Время операции (мин)",
+    "Количество циклов", 
+    "Период цикла",
+    "Количество персонала",
+    "Стоимость часа работы (руб)"
+}
+
 # Кодировка файлов
 ENCODING: str = "utf-8"
 
@@ -31,6 +40,9 @@ MAX_CLD_VARIABLES: int = 500
 MIN_OPERATIONS_FOR_ANALYSIS: int = 1
 MAX_FILENAME_LENGTH: int = 255
 
+# Допустимые периоды циклов
+VALID_CYCLE_PERIODS: list = ["смена", "день", "неделя", "месяц", "квартал", "год"]
+
 def validate_config() -> None:
     """Валидация конфигурации при запуске"""
     if CRITICAL_MIN_INPUTS < 1:
@@ -41,6 +53,11 @@ def validate_config() -> None:
     
     if not REQ_COLUMNS:
         raise ValueError("REQ_COLUMNS не может быть пустым")
+    
+    # Проверяем допустимые периоды циклов
+    for period in VALID_CYCLE_PERIODS:
+        if not isinstance(period, str):
+            raise ValueError("Все периоды циклов должны быть строками")
 
 # Валидация при импорте модуля
 validate_config()

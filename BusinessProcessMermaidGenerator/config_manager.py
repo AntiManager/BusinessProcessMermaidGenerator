@@ -60,13 +60,17 @@ class ConfigManager:
     
     def config_to_choices(self, config: Dict[str, Any]) -> Choices:
         """Преобразование конфигурации в объект Choices"""
+        # ИЗМЕНЕНИЕ: Преобразуем строку в Path для output_directory
+        output_dir = Path(config['output_directory']) if config.get('output_directory') else Path(".")
+        
         return Choices(
             subgroup_column=config['subgroup_column'] if not config['no_grouping'] else None,
             show_detailed=config['show_detailed'],
             critical_min_inputs=config['critical_min_inputs'],
             critical_min_reuse=config['critical_min_reuse'],
             no_grouping=config['no_grouping'],
-            output_format=config['output_format']
+            output_format=config['output_format'],
+            output_directory=output_dir  # ИЗМЕНЕНИЕ: передаем Path
         )
     
     def reset_config(self):

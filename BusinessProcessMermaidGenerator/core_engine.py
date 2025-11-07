@@ -81,10 +81,17 @@ class BusinessProcessEngine:
             logger.error(f"Ошибка загрузки CLD анализа: {e}")
             return False
     
-    def export_diagram(self, choices: Choices, output_base: str, available_columns: list = None) -> List[Path]:
+    def export_diagram(self, choices: Choices, output_base: str, available_columns: list = None, output_dir: Path = None) -> List[Path]:
         """Экспорт диаграммы в выбранный формат - ВОЗВРАЩАЕТ СПИСОК ФАЙЛОВ"""
         try:
             output_files = []
+            
+            # ИЗМЕНЕНИЕ: Упрощенная логика определения папки
+            if output_dir is None:
+                output_dir = choices.output_directory
+            
+            # Создаем папку если она не существует
+            output_dir.mkdir(parents=True, exist_ok=True)
             
             if choices.output_format in ["cld_mermaid", "cld_interactive"]:
                 if not self.causal_analysis:
@@ -93,18 +100,18 @@ class BusinessProcessEngine:
                 
                 if choices.output_format == "cld_mermaid":
                     # Основной файл CLD + интерактивная версия
-                    main_file = self._safe_export(export_cld_mermaid, self.causal_analysis, choices, output_base)
+                    main_file = self._safe_export(export_cld_mermaid, self.causal_analysis, choices, output_base, output_dir)
                     if main_file:
                         output_files.append(main_file)
                     
                     # Автоматически создаем интерактивную версию с суффиксом _cld
                     interactive_base = f"{output_base}_cld"
-                    interactive_file = self._safe_export(export_cld_interactive, self.causal_analysis, choices, interactive_base)
+                    interactive_file = self._safe_export(export_cld_interactive, self.causal_analysis, choices, interactive_base, output_dir)
                     if interactive_file:
                         output_files.append(interactive_file)
                     
                 else:  # cld_interactive
-                    interactive_file = self._safe_export(export_cld_interactive, self.causal_analysis, choices, output_base)
+                    interactive_file = self._safe_export(export_cld_interactive, self.causal_analysis, choices, output_base, output_dir)
                     if interactive_file:
                         output_files.append(interactive_file)
                     
@@ -115,30 +122,30 @@ class BusinessProcessEngine:
                 
                 if choices.output_format == "md":
                     # Основной Markdown + интерактивная версия
-                    main_file = self._safe_export(export_mermaid, self.operations, self.analysis_data, choices, available_columns or [], output_base)
+                    main_file = self._safe_export(export_mermaid, self.operations, self.analysis_data, choices, available_columns or [], output_base, output_dir)
                     if main_file:
                         output_files.append(main_file)
                     
                     # Автоматически создаем интерактивную версию с суффиксом _vis
                     interactive_base = f"{output_base}_vis"
-                    interactive_file = self._safe_export(export_interactive_html, self.operations, self.analysis_data, choices, interactive_base)
+                    interactive_file = self._safe_export(export_interactive_html, self.operations, self.analysis_data, choices, interactive_base, output_dir)
                     if interactive_file:
                         output_files.append(interactive_file)
                     
                 elif choices.output_format == "html_mermaid":
                     # Основной HTML + интерактивная версия
-                    main_file = self._safe_export(export_html_mermaid, self.operations, self.analysis_data, choices, available_columns or [], output_base)
+                    main_file = self._safe_export(export_html_mermaid, self.operations, self.analysis_data, choices, available_columns or [], output_base, output_dir)
                     if main_file:
                         output_files.append(main_file)
                     
                     # Автоматически создаем интерактивную версию с суффиксом _vis
                     interactive_base = f"{output_base}_vis"
-                    interactive_file = self._safe_export(export_interactive_html, self.operations, self.analysis_data, choices, interactive_base)
+                    interactive_file = self._safe_export(export_interactive_html, self.operations, self.analysis_data, choices, interactive_base, output_dir)
                     if interactive_file:
                         output_files.append(interactive_file)
                     
                 elif choices.output_format == "html_interactive":
-                    interactive_file = self._safe_export(export_interactive_html, self.operations, self.analysis_data, choices, output_base)
+                    interactive_file = self._safe_export(export_interactive_html, self.operations, self.analysis_data, choices, output_base, output_dir)
                     if interactive_file:
                         output_files.append(interactive_file)
                 else:
@@ -195,3 +202,41 @@ class BusinessProcessEngine:
         self.operations = None
         self.analysis_data = None
         self.causal_analysis = None
+
+    # В core_engine.py добавляем метод
+
+    def export_registries(self, output_base: str, available_columns: list = None, output_dir: Path = None) -> Path:
+        """Экспорт полного комплекта реестров в Excel"""
+        try:
+            if output_dir is None:
+                output_dir = Path(".")
+                
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Проверяем наличие данных бизнес-процессов
+            if not self.operations or not self.analysis_data:
+                logger.error("Нет данных бизнес-процессов для экспорта реестров")
+                return None
+                
+            # ВСЕГДА выполняем автоматический CLD анализ из бизнес-процессов для экспорта реестров
+            if not self.causal_analysis:
+                logger.info("Выполняем автоматический CLD анализ из бизнес-процессов для экспорта реестров")
+                from cld_analyzer import analyze_causal_links_from_operations
+                self.causal_analysis = analyze_causal_links_from_operations(self.operations)
+                
+            from exporters.excel_exporter import export_complete_registry
+            
+            output_file = export_complete_registry(
+                operations=self.operations,
+                analysis_data=self.analysis_data,
+                causal_analysis=self.causal_analysis,  # Теперь всегда передаем CLD анализ
+                original_columns=available_columns or [],
+                output_base=output_base,
+                output_dir=output_dir
+            )
+            
+            return output_file
+            
+        except Exception as e:
+            logger.error(f"Ошибка экспорта реестров: {e}")
+            return None
