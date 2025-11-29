@@ -1,0 +1,968 @@
+# architecture.yaml - Генератор диаграмм бизнес-процессов v3.5
+# Сгенерировано на основе анализа кода
+
+project:
+  name: "Business Process Diagram Generator"
+  version: "3.5.0"
+  description: "Генератор диаграмм бизнес-процессов с поддержкой Causal Loop Diagrams и аналитикой потока ценности"
+  architecture: "Модульная с фасадным паттерном"
+  entry_point: "main.py"
+
+metadata:
+  last_updated: "2024"
+  total_files: 14
+  total_classes: 12
+  total_functions: 67
+
+modules:
+  core:
+    description: "Ядро системы - координация процессов и бизнес-логика"
+    files:
+      main.py:
+        purpose: "Точка входа приложения, инициализация GUI"
+        dependencies: ["gui_interface"]
+        functions:
+          main:
+            description: "Главная функция - запуск графического интерфейса"
+            returns: "None"
+            
+      core_api.py:
+        purpose: "Фасадный API для координации процессов, упрощение взаимодействия между модулями"
+        dependencies: ["core_engine", "models", "logging", "webbrowser", "pathlib"]
+        classes:
+          DiagramGenerator:
+            description: "Координатор генерации диаграмм - заменяет God Object"
+            attributes:
+              engine: "BusinessProcessEngine"
+            methods:
+              generate_diagram:
+                description: "Главная функция генерации с улучшенной обработкой ошибок"
+                parameters:
+                  excel_path: "Path"
+                  sheet_name: "str"
+                  choices: "Choices"
+                  output_base: "str"
+                  available_columns: "list = None"
+                returns: "Tuple[bool, str, List[Path]]"
+                error_handling: "Возвращает кортеж (успех, сообщение, список_файлов)"
+                
+              _validate_inputs:
+                description: "Валидация входных параметров"
+                parameters: 
+                  excel_path: "Path"
+                  sheet_name: "str"
+                  output_base: "str"
+                  choices: "Choices"
+                returns: "Optional[str]"
+                error_conditions: "Возвращает строку ошибки или None"
+                
+              _get_main_file_to_open:
+                description: "Определяет какой файл открывать в браузере по умолчанию"
+                parameters: 
+                  output_files: "List[Path]"
+                  choices: "Choices"
+                returns: "Optional[Path]"
+                
+              _build_success_message:
+                description: "Построение сообщения об успехе с статистикой"
+                parameters: 
+                  output_files: "List[Path]"
+                  stats: "Dict"
+                  is_cld: "bool"
+                returns: "str"
+                
+              _open_in_browser:
+                description: "Автоматическое открытие в браузере"
+                parameters: 
+                  output_file: "Path"
+                returns: "None"
+                
+        functions:
+          run_with_gui:
+            description: "Запуск генерации диаграммы с параметрами из GUI"
+            parameters: 
+              excel_path: "Path"
+              sheet_name: "str"
+              choices: "Choices"
+              output_base: "str"
+            returns: "bool"
+            
+          run_multiple_formats:
+            description: "Запуск генерации для нескольких форматов"
+            parameters: 
+              excel_path: "Path"
+              sheet_name: "str"
+              formats: "List[str]"
+              choices_template: "Choices"
+              output_base: "str"
+            returns: "bool"
+            
+          get_file_extension:
+            description: "Получение расширения файла по формату вывода"
+            parameters: 
+              output_format: "str"
+            returns: "str"
+
+      core_engine.py:
+        purpose: "Бизнес-логика и координация движка, центральный координатор"
+        dependencies: ["data_loader", "analysis", "cld_analyzer", "exporters", "models", "logging"]
+        classes:
+          BusinessProcessEngine:
+            description: "Движок бизнес-процессов - координирует всю логику приложения"
+            attributes:
+              operations: "Optional[Dict[str, Operation]]"
+              analysis_data: "Optional[AnalysisData]"
+              causal_analysis: "Optional[CausalAnalysis]"
+              
+            methods:
+              load_business_processes:
+                description: "Загрузка и валидация данных бизнес-процессов"
+                parameters: 
+                  excel_path: "Path"
+                  sheet_name: "str"
+                  choices: "Choices"
+                returns: "bool"
+                error_handling: "Логирует ошибки, возвращает bool"
+                
+              analyze_business_processes:
+                description: "Анализ бизнес-процессов"
+                parameters: 
+                  choices: "Choices"
+                returns: "bool"
+                
+              load_causal_analysis:
+                description: "Загрузка и анализ причинно-следственных связей"
+                parameters: 
+                  excel_path: "Path"
+                  choices: "Choices"
+                returns: "bool"
+                logic: "Поддерживает два источника: auto из бизнес-процессов и manual из отдельной таблицы"
+                
+              export_diagram:
+                description: "Экспорт диаграммы в выбранный формат - ВОЗВРАЩАЕТ СПИСОК ФАЙЛОВ"
+                parameters: 
+                  choices: "Choices"
+                  output_base: "str"
+                  available_columns: "list = None"
+                  output_dir: "Path = None"
+                returns: "List[Path]"
+                behavior: "Автоматически создает интерактивные версии для основных форматов"
+                
+              export_registries:
+                description: "Экспорт полного комплекта реестров в Excel"
+                parameters: 
+                  output_base: "str"
+                  available_columns: "list = None"
+                  output_dir: "Path = None"
+                returns: "Path"
+                features: "Всегда выполняет автоматический CLD анализ из бизнес-процессов для экспорта"
+                
+              get_statistics:
+                description: "Получение статистики для отображения в UI"
+                parameters: []
+                returns: "Dict"
+                
+              reset:
+                description: "Сброс состояния движка"
+                parameters: []
+                returns: "None"
+                
+              _safe_export:
+                description: "Безопасный вызов экспортера с обработкой ошибок"
+                parameters: 
+                  export_func: "Callable"
+                  "*args": "any"
+                  "**kwargs": "any"
+                returns: "Optional[Path]"
+
+  data_models:
+    description: "Data classes и доменные модели с встроенной валидацией"
+    files:
+      models.py:
+        purpose: "DTO и валидация данных, типобезопасность с dataclasses"
+        dependencies: ["dataclasses", "pathlib", "typing", "re"]
+        classes:
+          Choices:
+            description: "Настройки генерации из GUI с валидацией"
+            attributes:
+              subgroup_column: "Optional[str] = None"
+              show_detailed: "bool = False"
+              critical_min_inputs: "int = 3"
+              critical_min_reuse: "int = 3"
+              no_grouping: "bool = False"
+              output_format: "str = 'md'"
+              cld_source_type: "str = 'auto'"
+              cld_sheet_name: "str = ''"
+              show_cld_operations: "bool = True"
+              cld_influence_signs: "bool = True"
+              output_directory: "Path = field(default_factory=lambda: Path('.'))"
+              generate_example: "bool = False"
+            validation:
+              output_format: "Должен быть одним из: ['md', 'html_mermaid', 'html_interactive', 'cld_mermaid', 'cld_interactive']"
+              cld_source_type: "Должен быть 'auto' или 'manual'"
+              output_directory: "Автоматически создается если не существует"
+              
+          Operation:
+            description: "Бизнес-операция с входами/выходами и метриками потока ценности"
+            attributes:
+              name: "str"
+              outputs: "List[str] = field(default_factory=list)"
+              inputs: "List[str] = field(default_factory=list)"
+              subgroup: "Optional[str] = None"
+              node_text: "str = ''"
+              group: "str = ''"
+              owner: "str = ''"
+              detailed: "str = ''"
+              time_minutes: "float = 0.0"
+              cycle_count: "int = 1"
+              cycle_period: "str = 'день'"
+              personnel_count: "int = 1"
+              personnel_cost_per_hour: "float = 0.0"
+              additional_data: "Dict[str, Any] = field(default_factory=dict)"
+            validation:
+              name: "Не может быть пустым"
+              cycle_period: "Должен быть одним из: ['смена', 'день', 'неделя', 'месяц', 'квартал', 'год']"
+              time_minutes: "Не может быть отрицательным"
+            properties:
+              total_time_per_period:
+                returns: "float"
+                description: "Общее время операции за период"
+                
+              total_personnel_cost_per_period:
+                returns: "float" 
+                description: "Общая стоимость персонала за период"
+                
+          CausalLink:
+            description: "Причинно-следственная связь для CLD с валидацией"
+            attributes:
+              source: "str"
+              target: "str"
+              influence: "str"
+              strength: "Optional[str] = None"
+              operation: "Optional[str] = None"
+              include_in_cld: "bool = True"
+              description: "str = ''"
+            validation:
+              source: "Не может быть пустым"
+              target: "Не может быть пустым" 
+              influence: "Должен быть '+' или '-'"
+              
+          MergePoint:
+            description: "Точка слияния в процессах"
+            attributes:
+              operation: "str"
+              input_count: "int"
+              inputs: "List[str]"
+              
+          SplitPoint:
+            description: "Точка разветвления в процессах"
+            attributes:
+              output: "str"
+              source_operation: "str"
+              target_count: "int"
+              targets: "List[str]"
+              
+          CriticalPoint:
+            description: "Супер-критическая операция"
+            attributes:
+              operation: "str"
+              inputs_count: "int"
+              output_reuse: "int"
+              
+          ProcessAnalysis:
+            description: "Результаты анализа бизнес-процессов"
+            attributes:
+              merge_points: "List[MergePoint]"
+              split_points: "List[SplitPoint]"
+              critical_points: "List[CriticalPoint]"
+              external_inputs: "Set[str]"
+              final_outputs: "Set[str]"
+              operations_count: "int"
+              subgroups_count: "int"
+              groups_count: "int"
+              owners_count: "int"
+              
+          AnalysisData:
+            description: "Данные анализа для экспортеров"
+            attributes:
+              external_inputs: "Set[str]"
+              final_outputs: "Set[str]"
+              output_to_operation: "Dict[str, str]"
+              input_to_operations: "Dict[str, List[str]]"
+              analysis: "ProcessAnalysis"
+              
+          CausalAnalysis:
+            description: "Анализ причинно-следственных связей"
+            attributes:
+              links: "List[CausalLink]"
+              variables: "Set[str]"
+              feedback_loops: "List[List[str]]"
+              source_type: "str"
+              statistics: "Dict[str, Any]"
+
+  data_processing:
+    description: "Обработка, загрузка и анализ данных"
+    files:
+      data_loader.py:
+        purpose: "Загрузка и валидация данных из Excel, преобразование в доменные модели"
+        dependencies: ["pandas", "models", "utils", "collections"]
+        classes:
+          DataValidationError:
+            description: "Ошибка валидации данных"
+            base_class: "Exception"
+            
+        functions:
+          load_and_validate_data:
+            description: "Загружает данные из Excel и проверяет обязательные колонки с улучшенной обработкой ошибок"
+            parameters:
+              excel_path: "str"
+              sheet_name: "str"
+              required_columns: "set"
+            returns: "Optional[pd.DataFrame]"
+            throws: "DataValidationError"
+            
+          collect_operations:
+            description: "Собирает операции из DataFrame с поддержкой множественных выходов и улучшенной обработкой данных"
+            parameters:
+              df: "pd.DataFrame"
+              choices: "Choices"
+            returns: "Dict[str, Operation]"
+            
+          load_cld_data:
+            description: "Загружает данные для CLD из отдельного листа Excel с улучшенной валидацией"
+            parameters:
+              excel_path: "str"
+              sheet_name: "str"
+            returns: "Optional[pd.DataFrame]"
+            throws: "DataValidationError"
+            
+        helper_functions:
+          _extract_operation_name:
+            parameters: ["row: pd.Series", "fallback_index: int"]
+            returns: "str"
+            
+          _merge_operation_data:
+            parameters: ["op_name: str", "rows: List[dict]", "available_columns: list", "choices: Choices"]
+            returns: "Optional[Operation]"
+            
+          _extract_inputs: 
+            parameters: ["row: dict]"
+            returns: "List[str]"
+            
+          _extract_outputs:
+            parameters: ["row: dict]"
+            returns: "List[str]"
+            
+          # ... и другие вспомогательные функции для извлечения метрик
+
+      analysis.py:
+        purpose: "Анализ бизнес-процессов, выявление паттернов и статистики"
+        dependencies: ["models", "collections"]
+        functions:
+          analyse_network:
+            description: "Основной анализ сети процессов"
+            parameters:
+              operations: "Dict[str, Operation]"
+              choices: "Choices"
+            returns: "AnalysisData"
+            
+          analyze_process_patterns:
+            description: "Анализирует точки слияния и разветвления в процессах"
+            parameters:
+              operations: "Dict[str, Operation]"
+              input_to_operations: "Dict[str, List[str]]"
+            returns: "Tuple[List[MergePoint], List[SplitPoint]]"
+            
+          get_process_complexity_score:
+            description: "Рассчитать оценку сложности процесса от 1 до 10"
+            parameters:
+              operations: "Dict[str, Operation]"
+              analysis_data: "AnalysisData"
+            returns: "int"
+
+      cld_analyzer.py:
+        purpose: "Анализатор причинно-следственных связей для Causal Loop Diagrams"
+        dependencies: ["pandas", "models", "collections"]
+        classes:
+          CLDValidationError:
+            description: "Ошибка валидации CLD данных"
+            base_class: "Exception"
+            
+        functions:
+          analyze_causal_links_from_operations:
+            description: "Автоматически строит CLD из существующих бизнес-процессов с улучшенной обработкой ошибок"
+            parameters:
+              operations: "Dict[str, Operation]"
+            returns: "CausalAnalysis"
+            throws: "CLDValidationError"
+            
+          analyze_causal_links_from_dataframe:
+            description: "Строит CLD из отдельной таблицы с CLD данными с улучшенной валидацией"
+            parameters:
+              df: "pd.DataFrame"
+            returns: "CausalAnalysis"
+            throws: "CLDValidationError"
+            
+          find_feedback_loops:
+            description: "Находит петли обратной связи в графе с улучшенным алгоритмом"
+            parameters:
+              links: "List[CausalLink]"
+            returns: "List[List[str]]"
+            
+        helper_functions:
+          _validate_influence_sign:
+            parameters: ["influence_value: any"]
+            returns: "str"
+            
+          _determine_inclusion:
+            parameters: ["row: pd.Series]"
+            returns: "bool"
+            
+          _extract_optional_field:
+            parameters: ["row: pd.Series", "field_name: str", "default: any = None"]
+            returns: "any"
+            
+          _calculate_cld_statistics:
+            parameters: ["links: List[CausalLink]", "variables: Set[str]", "feedback_loops: List[List[str]]"]
+            returns: "Dict"
+
+  exporters:
+    description: "Система экспорта в различные форматы, каждый экспортер возвращает Path"
+    files:
+      mermaid_exporter.py:
+        purpose: "Экспорт в Mermaid формат (Markdown и HTML) с улучшениями"
+        dependencies: ["models", "utils", "config", "pathlib"]
+        functions:
+          export_mermaid:
+            description: "Экспортирует диаграмму в Markdown с Mermaid - ВОЗВРАЩАЕТ Path"
+            parameters:
+              operations: "Dict[str, Operation]"
+              analysis_data: "AnalysisData"
+              choices: "Choices"
+              available_columns: "List[str]"
+              output_base: "str = None"
+              output_dir: "Path = None"
+            returns: "Path"
+            
+          build_mermaid_md:
+            description: "Строит Mermaid код для Markdown"
+            parameters:
+              operations: "Dict[str, Operation]"
+              analysis_data: "AnalysisData"
+              choices: "Choices"
+            returns: "str"
+            
+          build_mermaid_html:
+            description: "Генерирует Mermaid код для вставки в HTML с улучшениями"
+            parameters:
+              operations: "Dict[str, Operation]"
+              analysis_data: "AnalysisData"
+              choices: "Choices"
+            returns: "str"
+            
+        helper_functions:
+          _node_line_md:
+            parameters: ["name: str", "op: Operation", "input_to_operations: Dict[str, List[str]]", "critical_ops: Set[str]"]
+            returns: "str"
+            
+          _node_line_html:
+            parameters: ["name: str", "op: Operation", "input_to_operations: Dict[str, List[str]]", "critical_ops: Set[str]"]
+            returns: "str"
+            
+          _build_io_registry:
+            parameters: ["external_inputs: Set[str]", "final_outputs: Set[str]", "output_to_operation: Dict[str, str]", "input_to_operations: Dict[str, List[str]]"]
+            returns: "List[Dict[str, str]]"
+            
+          _build_op_registry:
+            parameters: ["operations: Dict[str, Operation]", "input_to_operations: Dict[str, List[str]]", "critical_ops: Set[str]"]
+            returns: "List[Dict[str, str]]"
+
+      interactive_exporter.py:
+        purpose: "Экспорт в интерактивный HTML граф на vis-network"
+        dependencies: ["models", "utils", "config", "json"]
+        functions:
+          export_interactive_html:
+            description: "Экспортирует диаграмму в интерактивный HTML - ВОЗВРАЩАЕТ Path"
+            parameters:
+              operations: "Dict[str, Operation]"
+              analysis_data: "AnalysisData"
+              choices: "Choices"
+              output_base: "str = None"
+              output_dir: "Path = None"
+            returns: "Path"
+            
+          build_interactive_html_data:
+            description: "Строит структуру данных для интерактивного HTML-графа"
+            parameters:
+              operations: "Dict[str, Operation]"
+              analysis_data: "AnalysisData"
+            returns: "Dict[str, Any]"
+            
+          generate_interactive_html_file:
+            description: "Генерирует HTML-файл с интерактивной диаграммой на vis-network"
+            parameters:
+              html_data: "Dict[str, Any]"
+              output_file: "Path"
+            returns: "None"
+
+      excel_exporter.py:
+        purpose: "Экспорт реестров в Excel формат для дальнейшего анализа и переиспользования"
+        dependencies: ["pandas", "models", "utils", "config"]
+        functions:
+          export_complete_registry:
+            description: "Полный экспорт ВСЕХ реестров в один Excel файл"
+            parameters:
+              operations: "Dict[str, Operation]"
+              analysis_data: "AnalysisData"
+              causal_analysis: "Optional[CausalAnalysis]"
+              original_columns: "List[str]"
+              output_base: "str"
+              output_dir: "Path = None"
+            returns: "Path"
+            behavior: "Всегда выполняет автоматический CLD анализ из бизнес-процессов для экспорта реестров"
+            
+          export_operations_registry:
+            description: "Экспорт реестра операций в формате ПРИГОДНОМ ДЛЯ ПОВТОРНОГО ИСПОЛЬЗОВАНИЯ"
+            parameters:
+              operations: "Dict[str, Operation]"
+              original_columns: "List[str]"
+              output_file: "Path"
+            returns: "None"
+            
+          export_value_stream_analysis:
+            description: "НОВАЯ ФУНКЦИЯ: Экспорт анализа потока создания ценности"
+            parameters:
+              operations: "Dict[str, Operation]"
+              output_file: "Path"
+            returns: "None"
+            
+          export_io_registry:
+            description: "Экспорт реестра входов/выходов для расширенного анализа потоков"
+            parameters:
+              analysis_data: "AnalysisData"
+              output_file: "Path"
+            returns: "None"
+            
+          export_cld_registry:
+            description: "Экспорт реестра причинно-следственных связей в формате для повторного использования"
+            parameters:
+              causal_analysis: "Optional[CausalAnalysis]"
+              output_file: "Path"
+            returns: "None"
+            behavior: "ВСЕГДА создает реестр, даже если causal_analysis отсутствует"
+
+  ui:
+    description: "Пользовательский интерфейс Tkinter с разделением на вкладки"
+    files:
+      gui_interface.py:
+        purpose: "Графический интерфейс Tkinter с разделением БП и CLD на разные вкладки"
+        dependencies: ["tkinter", "pandas", "core_engine", "models", "pathlib", "filedialog", "messagebox", "json"]
+        classes:
+          BusinessProcessGUI:
+            description: "Главный класс GUI, управление интерфейсом и взаимодействием с пользователем"
+            attributes:
+              config: "Dict[str, Any]"
+              engine: "BusinessProcessEngine"
+              excel_path: "tk.StringVar"
+              sheet_name: "tk.StringVar"
+              output_base: "tk.StringVar"
+              output_directory: "tk.StringVar"
+              # ... и другие переменные интерфейса
+              
+            methods:
+              __init__:
+                description: "Инициализация GUI, загрузка конфигурации"
+                parameters: ["root: tk.Tk]"
+                
+              create_widgets:
+                description: "Создание компактного интерфейса с вкладками"
+                parameters: []
+                returns: "None"
+                
+              create_bp_tab:
+                description: "Создание вкладки бизнес-процессов с авто-CLD"
+                parameters: []
+                returns: "ttk.Frame"
+                
+              create_cld_tab:
+                description: "Создание вкладки CLD (только ручной режим из отдельного листа)"
+                parameters: []
+                returns: "ttk.Frame"
+                
+              create_control_buttons:
+                description: "Создание компактных кнопок управления"
+                parameters: ["parent: ttk.Frame]"
+                returns: "None"
+                
+              create_example_generator_buttons:
+                description: "Создание кнопок для генерации примеров файлов"
+                parameters: ["parent: ttk.Frame]"
+                returns: "None"
+                
+              generate_diagrams:
+                description: "Генерация диаграмм для выбранных форматов"
+                parameters: []
+                returns: "None"
+                
+              export_registries:
+                description: "Экспорт реестров в Excel с учетом активной вкладки"
+                parameters: []
+                returns: "None"
+                
+              load_sheet_names:
+                description: "Загрузка списка листов из выбранного файла Excel"
+                parameters: []
+                returns: "None"
+                
+              browse_file:
+                description: "Выбор файла Excel через диалоговое окно"
+                parameters: []
+                returns: "None"
+                
+              browse_output_directory:
+                description: "Выбор папки для сохранения отчетов"
+                parameters: []
+                returns: "None"
+                
+              generate_bp_example:
+                description: "Генерация примера файла бизнес-процессов с расширенными метриками"
+                parameters: []
+                returns: "None"
+                
+              generate_cld_example:
+                description: "Генерация примера файла CLD"
+                parameters: []
+                returns: "None"
+                
+              _run_generation:
+                description: "Запуск генерации с использованием движка"
+                parameters: ["excel_path: Path", "sheet_name: str", "choices: Choices", "output_base: str"]
+                returns: "bool"
+                
+              _export_cld_registry_only:
+                description: "Экспорт только CLD реестра для ручного режима"
+                parameters: ["output_base: str", "output_dir: Path]"
+                returns: "Path"
+
+        functions:
+          run_gui:
+            description: "Запуск графического интерфейса"
+            parameters: []
+            returns: "None"
+
+      example_generator.py:
+        purpose: "Генератор примеров Excel файлов для тестирования и изучения функционала"
+        dependencies: ["pandas", "pathlib"]
+        functions:
+          create_business_process_example:
+            description: "Создает пример Excel файла с бизнес-процессом интернет-магазина с расширенными метриками потока создания ценности"
+            parameters: ["output_file: Path]"
+            returns: "None"
+            features: "25 операций с метриками времени, стоимости, циклов"
+            
+          create_cld_example:
+            description: "Создает пример Excel файла с CLD данными"
+            parameters: ["output_file: Path]"
+            returns: "None"
+            features: "32 причинно-следственные связи с циклами обратной связи"
+
+  infrastructure:
+    description: "Конфигурация, утилиты и управление настройками"
+    files:
+      config.py:
+        purpose: "Конфигурация приложения и константы с улучшенной структурой"
+        dependencies: ["typing"]
+        constants:
+          STYLES: "Dict[str, str] - Стили для визуализации"
+          CRITICAL_MIN_INPUTS: "int = 3 - Пороговые значения для анализа"
+          CRITICAL_MIN_REUSE: "int = 3"
+          REQ_COLUMNS: "set = {'Операция', 'Входы', 'Выход'} - Обязательные колонки"
+          CLD_REQUIRED_COLUMNS: "set = {'Источник', 'Цель', 'Знак влияния'}"
+          VALUE_STREAM_COLUMNS: "set - Новые колонки для аналитики потока ценности"
+          ENCODING: "str = 'utf-8' - Кодировка файлов"
+          MAX_OPERATIONS_FOR_COMPLEX_ANALYSIS: "int = 1000 - Настройки производительности"
+          VALID_CYCLE_PERIODS: "list - Допустимые периоды циклов"
+          
+        functions:
+          validate_config:
+            description: "Валидация конфигурации при запуске"
+            parameters: []
+            returns: "None"
+            throws: "ValueError"
+
+      config_manager.py:
+        purpose: "Менеджер конфигурации для сохранения настроек между запусками"
+        dependencies: ["sys", "os", "json", "pathlib", "models", "config"]
+        classes:
+          ConfigManager:
+            description: "Управление конфигурацией, поддержка разных окружений"
+            methods:
+              __init__:
+                parameters: ["config_file: str = 'bp_config.json']"
+                
+              load_config:
+                description: "Загрузка конфигурации из файла"
+                parameters: []
+                returns: "Dict[str, Any]"
+                
+              save_config:
+                description: "Сохранение конфигурации в файл"
+                parameters: ["config: Dict[str, Any]]"
+                returns: "None"
+                
+              config_to_choices:
+                description: "Преобразование конфигурации в объект Choices"
+                parameters: ["config: Dict[str, Any]]"
+                returns: "Choices"
+                
+              reset_config:
+                description: "Сброс конфигурации к значениям по умолчанию"
+                parameters: []
+                returns: "None"
+
+      utils.py:
+        purpose: "Утилиты и вспомогательные функции"
+        dependencies: ["re", "pandas", "pathlib", "typing"]
+        functions:
+          safe_id:
+            description: "Создание безопасного идентификатора для Mermaid"
+            parameters: ["name: str | None]"
+            returns: "str"
+            
+          escape_text:
+            description: "Экранирование текста для Mermaid"
+            parameters: ["text: str | None]"
+            returns: "str"
+            
+          clean_text:
+            description: "Очистка текста от специальных символов"
+            parameters: ["text: str | None]"
+            returns: "str"
+            
+          merge_strings:
+            description: "Объединение строк с устранением дубликатов"
+            parameters: ["existing: str", "new: str", "separator: str = '; ']"
+            returns: "str"
+            
+          get_excel_files:
+            description: "Получение списка Excel файлов в текущей директории"
+            parameters: []
+            returns: "List[Path]"
+            
+          create_markdown_table:
+            description: "Создает Markdown таблицу из данных"
+            parameters: ["headers: List[str]", "data: List[Dict[str, str]]"]
+            returns: "str"
+
+data_flows:
+  business_process_generation:
+    description: "Полный поток данных для генерации диаграмм бизнес-процессов"
+    steps:
+      - step: "Загрузка Excel данных"
+        module: "data_loader"
+        function: "load_and_validate_data"
+        input: "excel_path, sheet_name, REQ_COLUMNS"
+        output: "pd.DataFrame"
+        
+      - step: "Сбор операций"
+        module: "data_loader"
+        function: "collect_operations" 
+        input: "DataFrame, Choices"
+        output: "Dict[str, Operation]"
+        
+      - step: "Анализ сети процессов"
+        module: "analysis"
+        function: "analyse_network"
+        input: "operations, Choices"
+        output: "AnalysisData"
+        
+      - step: "Экспорт диаграмм"
+        module: "core_engine"
+        function: "export_diagram"
+        input: "operations, AnalysisData, Choices"
+        output: "List[Path]"
+        
+      - step: "Автоматическое создание интерактивной версии"
+        module: "core_engine"
+        function: "export_diagram"
+        behavior: "Для основных форматов автоматически создает интерактивные версии с суффиксами _vis, _cld"
+
+  cld_generation_auto:
+    description: "Поток данных для автоматического построения CLD из бизнес-процессов"
+    steps:
+      - step: "Загрузка бизнес-процессов"
+        module: "core_engine"
+        function: "load_business_processes"
+        input: "excel_path, sheet_name, Choices"
+        output: "operations"
+        
+      - step: "Автоматический CLD анализ"
+        module: "cld_analyzer"
+        function: "analyze_causal_links_from_operations"
+        input: "operations"
+        output: "CausalAnalysis"
+        
+      - step: "Экспорт CLD диаграмм"
+        module: "core_engine"
+        function: "export_diagram"
+        input: "CausalAnalysis, Choices"
+        output: "List[Path]"
+
+  cld_generation_manual:
+    description: "Поток данных для ручного построения CLD из отдельной таблицы"
+    steps:
+      - step: "Загрузка CLD данных"
+        module: "data_loader"
+        function: "load_cld_data"
+        input: "excel_path, cld_sheet_name"
+        output: "pd.DataFrame"
+        
+      - step: "Анализ причинно-следственных связей"
+        module: "cld_analyzer"
+        function: "analyze_causal_links_from_dataframe"
+        input: "DataFrame"
+        output: "CausalAnalysis"
+        
+      - step: "Экспорт CLD диаграмм"
+        module: "core_engine"
+        function: "export_diagram"
+        input: "CausalAnalysis, Choices"
+        output: "List[Path]"
+
+  registry_export:
+    description: "Поток данных для экспорта реестров в Excel"
+    steps:
+      - step: "Загрузка и анализ бизнес-процессов"
+        modules: ["core_engine.load_business_processes", "core_engine.analyze_business_processes"]
+        output: "operations, AnalysisData"
+        
+      - step: "Автоматический CLD анализ для реестров"
+        module: "cld_analyzer"
+        function: "analyze_causal_links_from_operations"
+        input: "operations"
+        output: "CausalAnalysis"
+        
+      - step: "Экспорт полного комплекта реестров"
+        module: "excel_exporter"
+        function: "export_complete_registry"
+        input: "operations, AnalysisData, CausalAnalysis, original_columns"
+        output: "Path"
+
+dependencies:
+  external:
+    pandas: ">=1.5.0 - Обработка Excel данных"
+    openpyxl: ">=3.0.0 - Чтение/запись Excel файлов"
+    python-dateutil: ">=2.8.2 - Утилиты дат и времени"
+    pytz: ">=2022.7 - Поддержка временных зон"
+    
+  internal_dependencies:
+    core_api: ["core_engine", "models", "logging", "webbrowser"]
+    core_engine: ["data_loader", "analysis", "cld_analyzer", "exporters", "models"]
+    data_loader: ["models", "utils", "pandas"]
+    analysis: ["models", "collections"]
+    cld_analyzer: ["models", "pandas", "collections"]
+    exporters: ["models", "utils", "config", "pandas"]
+    gui_interface: ["core_engine", "models", "tkinter", "pandas"]
+    config_manager: ["models", "config"]
+
+  dependency_cycles:
+    status: "Устранены"
+    measures: "Использование lazy imports в main.py, фасадный паттерн в core_api.py"
+
+interfaces:
+  core_api_interface:
+    description: "Основной API для внешнего использования, фасадный паттерн"
+    methods:
+      - "DiagramGenerator.generate_diagram() - главный метод генерации"
+      - "run_with_gui() - интеграция с GUI"
+      - "run_multiple_formats() - пакетная генерация"
+    return_contract: "Все методы возвращают четко определенные кортежи или булевы значения"
+
+  data_loader_interface:
+    description: "Интерфейс загрузки данных"
+    methods:
+      - "load_and_validate_data() - загрузка с валидацией"
+      - "collect_operations() - преобразование в доменные модели"
+      - "load_cld_data() - загрузка CLD данных"
+    error_handling: "Бросает специализированные исключения (DataValidationError)"
+
+  exporters_interface:
+    description: "Интерфейс экспорта - единый контракт"
+    contract: "Все функции export_* возвращают Path к созданному файлу"
+    parameters: "Принимают output_base и output_dir для гибкости"
+    methods:
+      - "export_mermaid() -> Path"
+      - "export_interactive_html() -> Path" 
+      - "export_complete_registry() -> Path"
+
+  models_validation:
+    description: "Встроенная валидация в data classes"
+    methods:
+      - "__post_init__() - автоматическая валидация после инициализации"
+      - "Свойства для вычисляемых значений (total_time_per_period и др.)"
+
+configuration:
+  constants:
+    description: "Централизованное хранение констант в config.py"
+    groups:
+      styles: "STYLES - стили визуализации для Mermaid"
+      thresholds: "CRITICAL_MIN_INPUTS, CRITICAL_MIN_REUSE - пороги анализа"
+      columns: "REQ_COLUMNS, CLD_REQUIRED_COLUMNS - обязательные колонки"
+      performance: "MAX_OPERATIONS_FOR_COMPLEX_ANALYSIS - ограничения производительности"
+      value_stream: "VALUE_STREAM_COLUMNS - метрики потока ценности"
+      
+  runtime_config:
+    description: "Динамическая конфигурация через Choices и ConfigManager"
+    persistence: "JSON файл bp_config.json"
+    environment_aware: "Разные пути для exe и разработки"
+
+error_handling:
+  strategy: "Единый интерфейс возврата + специализированные исключения"
+  patterns:
+    - "core_api: (success: bool, message: str, files: List[Path])"
+    - "data_loader: DataValidationError"
+    - "cld_analyzer: CLDValidationError"
+    - "exporters: возврат None при ошибках"
+  logging: "Настроено на уровне main.py, уровень INFO"
+
+performance:
+  optimizations:
+    - "Ленивая загрузка в gui_interface (import внутри функций)"
+    - "Эффективные структуры данных для графовых операций"
+    - "Кэширование в BusinessProcessEngine"
+  limits:
+    - "MAX_OPERATIONS_FOR_COMPLEX_ANALYSIS: 1000"
+    - "MAX_CLD_VARIABLES: 500"
+
+extension_points:
+  exporters:
+    description: "Легкое добавление новых форматов экспорта"
+    steps:
+      - "Создать модуль в exporters/ с функциями export_формат() -> Path"
+      - "Добавить поддержку в core_engine.export_diagram()"
+      - "Обновить Choices.output_format и GUI"
+      
+  analyzers:
+    description: "Добавление новых анализаторов"
+    contract: "Возвращать стандартные data classes из models.py"
+    integration: "Через отдельный метод в core_engine"
+    
+  data_sources:
+    description: "Поддержка новых источников данных"
+    current: "Excel через pandas"
+    extension: "Добавить модуль в data_processing/"
+
+validation_rules:
+  data_validation:
+    - "Обязательные колонки: REQ_COLUMNS для бизнес-процессов, CLD_REQUIRED_COLUMNS для CLD"
+    - "Имя операции не может быть пустым"
+    - "Знак влияния должен быть '+' или '-'"
+    
+  business_rules:
+    - "Период цикла должен быть одним из VALID_CYCLE_PERIODS"
+    - "Время операции не может быть отрицательным"
+    - "Количество персонала не может быть отрицательным"
+    
+  configuration_rules:
+    - "output_format должен быть одним из допустимых значений"
+    - "output_directory автоматически создается если не существует"
