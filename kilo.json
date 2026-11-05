@@ -11,10 +11,24 @@
   ],
   "permission": {
     "bash": "allow",
-    "read": "allow",
+    "read": {
+      ".env*": "deny",
+      "**/.env*": "deny",
+      "_private/**": "deny",
+      "**/_private/**": "deny",
+      "*": "allow"
+    },
     "glob": "allow",
     "grep": "allow",
     "edit": {
+      ".env*": "ask",
+      "**/.env*": "ask",
+      ".git/**": "deny",
+      "**/.git/**": "deny",
+      "node_modules/**": "deny",
+      "**/node_modules/**": "deny",
+      "_private/**": "deny",
+      "**/_private/**": "deny",
       "*.py": "allow",
       "*.md": "allow",
       "*.yaml": "allow",
